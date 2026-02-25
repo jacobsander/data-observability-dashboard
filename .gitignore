@@ -1,0 +1,10 @@
+.env
+.env.local
+*.pyc
+__pycache__/
+venv/
+.venv/
+node_modules/
+figma_spec/dist/
+figma_spec/node_modules/
+.vercel/
