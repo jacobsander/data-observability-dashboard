@@ -1,0 +1,48 @@
+================================================================
+TECHNICAL SPECIFICATION: GA4 DATA INTEGRITY & DASHBOARD POC
+================================================================
+
+1. PROJECT OVERVIEW
+Build a Data Quality (DQ) monitoring system for GA4 BigQuery data.
+The system identifies missing or invalid event parameters (environment, 
+brand, etc.) and visualizes the health of the tracking implementation 
+via a Bootstrap web dashboard.
+
+2. TECH STACK
+- Database: Google BigQuery (Project: mimetic-perigee-290610)
+- Transformation: dbt Core (Daily batch runs)
+- Backend: Python Flask (google-cloud-bigquery library)
+- Frontend: Bootstrap 5 + Chart.js
+
+3. PHASE 1: DATA MODELING (dbt)
+- Seed: Create 'ga4_qa_requirements.csv' mapping event_name to req_key.
+- Source: analytics_524929475.events_* (and intraday for testing).
+- Logic: 
+  Assign 'qa_status' to every required parameter:
+  - VALID: Key exists with usable data.
+  - MISSING_KEY: Key not found in event_params array.
+  - INVALID_VALUE: Key exists but value is '(not set)', 'null', or ''.
+  - EMPTY_ARRAY: eCommerce 'items' array is empty for purchase/checkout.
+- Final Model: 'fct_ga4_validation_daily' (Granularity: 1 row per param per event).
+
+4. PHASE 2: BACKEND API (Python/Flask)
+Build endpoints to serve the dashboard:
+- /api/overview: Returns daily % of MISSING_KEY vs VALID per event.
+- /api/drilldown: Returns % failures broken down by specific parameter name 
+  (e.g., "login_status failure rate on page_view").
+
+5. PHASE 3: WEB DASHBOARD (Bootstrap + Chart.js)
+The dashboard must support two specific user interactions:
+A) TREND OVERVIEW:
+   - Line chart showing "Global Error Rate %" over the last 7 days.
+   - Capability to toggle visibility by event_name.
+B) PARAMETER DRILL-DOWN:
+   - Bar chart triggered by selecting an event.
+   - Displays the "Top Offenders" (parameters with highest missing % for that event).
+   - Use Bootstrap Cards and "Delta Badges" to show improvement/degradation vs D-1.
+
+6. CODING STANDARDS
+- Use CTEs in all SQL for readability.
+- Implement error handling for BigQuery credentials.
+- Ensure Bootstrap components are mobile-responsive.
+================================================================

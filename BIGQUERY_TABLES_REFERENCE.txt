@@ -1,0 +1,194 @@
+================================================================================
+GA4 OBSERVABILITY LAYER — BIGQUERY TABLES REFERENCE
+================================================================================
+For use when building a Flask backend (or other app) that reads from these
+tables and displays data via Bootstrap / Chart.js (or similar).
+--------------------------------------------------------------------------------
+Source: dbt project ga4_observability_poc (observability-layer repo)
+Updated: 2026-02-25
+================================================================================
+
+1. BIGQUERY CONNECTION
+--------------------------------------------------------------------------------
+  Project ID:  mimetic-perigee-290610
+  Dataset:     obs_layer_poc_moomin
+  Location:    EU
+
+  Full table names are:  mimetic-perigee-290610.obs_layer_poc_moomin.<table_name>
+
+  Authentication: Use a GCP service account with BigQuery Data Viewer (and
+  optionally Job User) on the project/dataset. Keyfile path or JSON key content
+  can be used with google-cloud-bigquery in Python.
+
+
+2. TABLES OVERVIEW
+--------------------------------------------------------------------------------
+  | Table                              | Grain / Purpose                          |
+  |------------------------------------|------------------------------------------|
+  | ga4_qa_requirements               | Seed: which params are required per event |
+  | stg_moomin__events                | Staging: raw key events (one day)         |
+  | int_moomin__event_param_status    | Per-event, per-param status (detail)       |
+  | fct_ga4_validation               | One row per (date, event, param) + status |
+  | fct_ga4_validation_summary_daily | One row per date, wide % columns          |
+
+  For the dashboard, the main tables to query are:
+    - fct_ga4_validation_summary_daily  (overview charts)
+    - fct_ga4_validation                (drill-down by event / param)
+
+
+3. TABLE DEFINITIONS (FOR FLASK / QUERIES)
+--------------------------------------------------------------------------------
+
+3.1 ga4_qa_requirements
+  Purpose: Reference list of required parameters per event (from seed).
+  Grain:   One row per (event_name, param_name).
+
+  Columns:
+    event_name     STRING   e.g. 'session_start', 'page_view', 'view_item', ...
+    param_name     STRING   e.g. 'environment', 'page_country', 'item_id', ...
+    is_items_array STRING   'true' or 'false' (items_array = eCommerce items)
+
+  Use: Optional; for labels or to know which params exist per event.
+
+
+3.2 stg_moomin__events
+  Purpose: Staging table of GA4 events for the key event types (one run_date).
+  Grain:   One row per event instance (date, event_timestamp, event_name, ...).
+
+  Columns (main): date, event_timestamp, event_name, user_pseudo_id,
+                  ga_session_id, page_location, page_title, transaction_id,
+                  currency, value, items, event_params, source, medium,
+                  campaign, gclid.
+
+  Use: Usually not needed for the dashboard; detail is in the fact/summary.
+
+
+3.3 int_moomin__event_param_status
+  Purpose: Per-event-instance, per-required-param validation status.
+  Grain:   One row per (date, event_timestamp, event_name, param_name).
+
+  Columns:
+    date             DATE
+    event_timestamp  INT64   (microseconds)
+    event_name       STRING
+    param_name       STRING
+    qa_status        STRING  'VALID' | 'MISSING_KEY' | 'INVALID_VALUE' | 'EMPTY_ARRAY'
+
+  Use: Optional; for custom event-level analytics. Summary already uses it.
+
+
+3.4 fct_ga4_validation
+  Purpose: Validation result per (date, event_name, param_name). Use for
+           drill-down: "for this event, which params are missing?"
+  Grain:   One row per (date, event_name, param_name).
+
+  Columns:
+    date          DATE
+    event_name    STRING   session_start | page_view | view_item | add_to_cart | begin_checkout | purchase
+    param_name    STRING   e.g. page_country, item_id, currency, ...
+    qa_status     STRING   VALID | MISSING_KEY | INVALID_VALUE | EMPTY_ARRAY
+    event_count   INT64    total event instances for that (date, event_name)
+    invalid_count INT64    count of those where this param was not VALID
+    created_at    TIMESTAMP
+
+  qa_status meanings:
+    VALID         Parameter present and has a non-empty, valid value.
+    MISSING_KEY   Parameter key absent (e.g. not in event_params).
+    INVALID_VALUE Key present but value is (not set), null, or empty.
+    EMPTY_ARRAY   items array has 0 elements (eCommerce events).
+
+  Suggested queries for Flask:
+    - Drill-down for one event, one date:
+      SELECT date, event_name, param_name, qa_status, event_count, invalid_count
+      FROM `mimetic-perigee-290610.obs_layer_poc_moomin.fct_ga4_validation`
+      WHERE date = @date AND event_name = @event_name
+      ORDER BY param_name;
+
+    - All non-VALID for a date (e.g. alert view):
+      SELECT date, event_name, param_name, qa_status, event_count, invalid_count
+      FROM `mimetic-perigee-290610.obs_layer_poc_moomin.fct_ga4_validation`
+      WHERE date = @date AND qa_status != 'VALID'
+      ORDER BY event_name, param_name;
+
+
+3.5 fct_ga4_validation_summary_daily
+  Purpose: One row per date with percentage columns per event. Use for
+           overview charts (time series, compare events).
+  Grain:   One row per date.
+
+  Columns:
+    date                              DATE
+    session_start_pct_params_missing  FLOAT64   % of required params that are MISSING_KEY
+    session_start_pct_events_missing   FLOAT64   % of session_start events with ≥1 param missing
+    page_view_pct_params_missing       FLOAT64
+    page_view_pct_events_missing       FLOAT64
+    view_item_pct_params_missing       FLOAT64
+    view_item_pct_events_missing       FLOAT64
+    add_to_cart_pct_params_missing     FLOAT64
+    add_to_cart_pct_events_missing     FLOAT64
+    begin_checkout_pct_params_missing   FLOAT64
+    begin_checkout_pct_events_missing  FLOAT64
+    purchase_pct_params_missing        FLOAT64
+    purchase_pct_events_missing        FLOAT64
+
+  Naming:
+    {event}_pct_params_missing  = share of required parameters for that event that are MISSING_KEY (0–100).
+    {event}_pct_events_missing  = share of event instances that had at least one required param not VALID (0–100).
+
+  Suggested queries for Flask:
+    - Overview time series (e.g. last 30 days):
+      SELECT date,
+             session_start_pct_events_missing, session_start_pct_params_missing,
+             page_view_pct_events_missing, page_view_pct_params_missing,
+             view_item_pct_events_missing, view_item_pct_params_missing,
+             add_to_cart_pct_events_missing, add_to_cart_pct_params_missing,
+             begin_checkout_pct_events_missing, begin_checkout_pct_params_missing,
+             purchase_pct_events_missing, purchase_pct_params_missing
+      FROM `mimetic-perigee-290610.obs_layer_poc_moomin.fct_ga4_validation_summary_daily`
+      WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      ORDER BY date;
+
+    - Latest day only:
+      SELECT * FROM `mimetic-perigee-290610.obs_layer_poc_moomin.fct_ga4_validation_summary_daily`
+      ORDER BY date DESC LIMIT 1;
+
+
+4. EVENTS (FIXED LIST)
+--------------------------------------------------------------------------------
+  session_start, page_view, view_item, add_to_cart, begin_checkout, purchase
+
+
+5. SUGGESTED FLASK API SHAPE (FOR BOOTSTRAP / CHART.JS)
+--------------------------------------------------------------------------------
+  - GET /api/summary?from=YYYY-MM-DD&to=YYYY-MM-DD
+    Returns: rows from fct_ga4_validation_summary_daily in range.
+    Use: Line/bar charts over time; compare events (pct_events_missing or pct_params_missing).
+
+  - GET /api/summary/latest
+    Returns: single row, latest date, from fct_ga4_validation_summary_daily.
+    Use: KPI cards or today’s overview.
+
+  - GET /api/drilldown?date=YYYY-MM-DD&event_name=session_start
+    Returns: rows from fct_ga4_validation for that date and event (param_name, qa_status, event_count, invalid_count).
+    Use: Table or bar chart “missing by parameter” when user clicks an event.
+
+  - GET /api/issues?date=YYYY-MM-DD
+    Returns: rows from fct_ga4_validation where qa_status != 'VALID' for that date.
+    Use: “Issues” or “Alerts” table for the day.
+
+
+6. PYTHON DEPENDENCIES (BIGQUERY)
+--------------------------------------------------------------------------------
+  google-cloud-bigquery
+  (Optional: db-dtypes for pandas support; pyarrow for large results.)
+
+  Example (service account keyfile):
+    from google.cloud import bigquery
+    client = bigquery.Client(project="mimetic-perigee-290610", location="EU")
+    query = "SELECT * FROM `mimetic-perigee-290610.obs_layer_poc_moomin.fct_ga4_validation_summary_daily` ORDER BY date DESC LIMIT 10"
+    df = client.query(query).to_dataframe()
+
+
+================================================================================
+END OF REFERENCE
+================================================================================
