@@ -1,9 +1,6 @@
 /** API client for dashboard backend */
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
-const USE_MOCK =
-  import.meta.env.VITE_USE_MOCK_DATA === "true" ||
-  import.meta.env.VITE_USE_MOCK_DATA === "1";
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -41,29 +38,20 @@ export function qualityFromSummary(row: SummaryRow, event: string): number {
 }
 
 export async function fetchSummary(from: string, to: string): Promise<SummaryRow[]> {
-  if (USE_MOCK) {
-    const { getMockSummaryRange } = await import("../mockData");
-    return getMockSummaryRange(from, to);
-  }
-  try {
-    return await fetchJson<SummaryRow[]>(`${API_BASE}/summary?from=${from}&to=${to}`);
-  } catch {
-    const { getMockSummaryRange } = await import("../mockData");
-    return getMockSummaryRange(from, to);
-  }
+  return fetchJson<SummaryRow[]>(`${API_BASE}/summary?from=${from}&to=${to}`);
+}
+
+export interface DashboardResponse {
+  latest: SummaryRow | null;
+  trend: SummaryRow[];
+}
+
+export async function fetchDashboard(days = 7): Promise<DashboardResponse> {
+  return fetchJson<DashboardResponse>(`${API_BASE}/dashboard?days=${days}`);
 }
 
 export async function fetchSummaryLatest(): Promise<SummaryRow | null> {
-  if (USE_MOCK) {
-    const { getMockSummaryLatest } = await import("../mockData");
-    return getMockSummaryLatest();
-  }
-  try {
-    return await fetchJson<SummaryRow>(`${API_BASE}/summary/latest`);
-  } catch {
-    const { getMockSummaryLatest } = await import("../mockData");
-    return getMockSummaryLatest();
-  }
+  return fetchJson<SummaryRow | null>(`${API_BASE}/summary/latest`);
 }
 
 export interface DrilldownRow {
@@ -79,16 +67,7 @@ export async function fetchDrilldown(
   date: string,
   eventName: string
 ): Promise<DrilldownRow[]> {
-  if (USE_MOCK) {
-    const { getMockDrilldown } = await import("../mockData");
-    return getMockDrilldown(date, eventName);
-  }
-  try {
-    return await fetchJson<DrilldownRow[]>(
-      `${API_BASE}/drilldown?date=${date}&event_name=${encodeURIComponent(eventName)}`
-    );
-  } catch {
-    const { getMockDrilldown } = await import("../mockData");
-    return getMockDrilldown(date, eventName);
-  }
+  return fetchJson<DrilldownRow[]>(
+    `${API_BASE}/drilldown?date=${date}&event_name=${encodeURIComponent(eventName)}`
+  );
 }

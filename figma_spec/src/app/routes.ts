@@ -1,14 +1,14 @@
 import { createBrowserRouter } from "react-router";
-import { Dashboard } from "./pages/Dashboard";
-import { EventDetail } from "./pages/EventDetail";
 
 export const router = createBrowserRouter([
   {
     path: "/",
-    Component: Dashboard,
+    lazy: () =>
+      import("./pages/Dashboard").then((m) => ({ Component: m.Dashboard })),
   },
   {
     path: "/event/:eventName",
-    Component: EventDetail,
+    lazy: () =>
+      import("./pages/EventDetail").then((m) => ({ Component: m.EventDetail })),
   },
 ]);

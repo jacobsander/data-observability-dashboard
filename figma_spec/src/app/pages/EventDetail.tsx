@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router";
+import { useParams, useLocation, Link } from "react-router";
 import {
   BarChart,
   Bar,
@@ -27,8 +27,10 @@ function missingPercentFromRow(row: DrilldownRow): number {
 
 export function EventDetail() {
   const { eventName } = useParams<{ eventName: string }>();
+  const location = useLocation();
+  const dateFromState = (location.state as { date?: string } | null)?.date;
   const [drilldown, setDrilldown] = useState<DrilldownRow[]>([]);
-  const [date, setDate] = useState<string>("");
+  const [date, setDate] = useState<string>(dateFromState ?? "");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,28 +40,43 @@ export function EventDetail() {
     setLoading(true);
     setError(null);
 
-    fetchSummaryLatest()
-      .then((latest) => {
-        const d = latest?.date ?? new Date().toISOString().slice(0, 10);
-        if (cancelled) return;
-        setDate(d);
-        return fetchDrilldown(d, eventName);
-      })
-      .then((rows) => {
-        if (!cancelled) setDrilldown(rows);
-      })
-      .catch((err) => {
-        if (!cancelled)
-          setError(err instanceof Error ? err.message : "Failed to load data");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    if (dateFromState) {
+      setDate(dateFromState);
+      fetchDrilldown(dateFromState, eventName)
+        .then((rows) => {
+          if (!cancelled) setDrilldown(rows);
+        })
+        .catch((err) => {
+          if (!cancelled)
+            setError(err instanceof Error ? err.message : "Failed to load data");
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    } else {
+      fetchSummaryLatest()
+        .then((latest) => {
+          const d = latest?.date ?? new Date().toISOString().slice(0, 10);
+          if (cancelled) return;
+          setDate(d);
+          return fetchDrilldown(d, eventName);
+        })
+        .then((rows) => {
+          if (rows && !cancelled) setDrilldown(rows);
+        })
+        .catch((err) => {
+          if (!cancelled)
+            setError(err instanceof Error ? err.message : "Failed to load data");
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }
 
     return () => {
       cancelled = true;
     };
-  }, [eventName]);
+  }, [eventName, dateFromState]);
 
   const parameters = drilldown.map((row) => ({
     name: row.param_name,
@@ -82,8 +99,29 @@ export function EventDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <p className="text-slate-400">Loading...</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-slate-300 hover:text-white mb-6 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back to Dashboard
+          </Link>
+          <div className="mb-8">
+            <div className="h-9 w-48 rounded bg-slate-700 animate-pulse mb-2" />
+            <div className="h-5 w-64 rounded bg-slate-700 animate-pulse" />
+          </div>
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
+            <div className="flex justify-between">
+              <div className="h-16 w-40 rounded bg-slate-700 animate-pulse" />
+              <div className="h-16 w-24 rounded bg-slate-700 animate-pulse" />
+            </div>
+          </div>
+          <div className="text-center py-12">
+            <p className="text-slate-400">Loading parameter data...</p>
+          </div>
+        </div>
       </div>
     );
   }

@@ -7,9 +7,10 @@ interface EventScorecardProps {
   percentage: number;
   previousPercentage?: number;
   index?: number;
+  latestDate?: string;
 }
 
-export function EventScorecard({ eventName, percentage, previousPercentage, index = 0 }: EventScorecardProps) {
+export function EventScorecard({ eventName, percentage, previousPercentage, index = 0, latestDate }: EventScorecardProps) {
   const getScoreColor = (percentage: number) => {
     if (percentage >= 90) return "text-green-600";
     if (percentage >= 70) return "text-emerald-600";
@@ -46,7 +47,11 @@ export function EventScorecard({ eventName, percentage, previousPercentage, inde
   const TrendIcon = trend?.icon;
 
   return (
-    <Link to={`/event/${eventName}`} className="block">
+    <Link
+      to={`/event/${eventName}`}
+      state={latestDate ? { date: latestDate } : undefined}
+      className="block"
+    >
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

@@ -1,6 +1,6 @@
 /**
  * GA4 events and their required parameters.
- * Used for mock data and as reference for the dashboard.
+ * Reference for the dashboard and event/param definitions.
  * Source: ga4_qa_requirements seed / BIGQUERY_TABLES_REFERENCE.txt
  */
 
