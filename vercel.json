@@ -4,11 +4,13 @@
   "outputDirectory": "figma_spec/dist",
   "framework": null,
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ],
   "functions": {
     "api/**/*.py": {
-      "runtime": "@vercel/python@3",
       "excludeFiles": "{tests/**,__tests__/**,**/*.test.py,**/test_*.py}"
     }
   }
