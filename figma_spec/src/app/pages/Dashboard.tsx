@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -12,6 +12,7 @@ import {
 import { HealthScore } from "../components/HealthScore";
 import { EventScorecard } from "../components/EventScorecard";
 import { DashboardSkeleton } from "../components/DashboardSkeleton";
+import { DatePicker } from "../components/DatePicker";
 import {
   EVENTS,
   fetchDashboard,
@@ -25,13 +26,16 @@ export function Dashboard() {
   const [visibleEvents, setVisibleEvents] = useState<Set<string>>(new Set(EVENTS));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [endDate, setEndDate] = useState<string>(() =>
+    new Date().toISOString().slice(0, 10)
+  );
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    fetchDashboard(7)
+    fetchDashboard(7, endDate)
       .then((res) => {
         if (!cancelled) {
           setLatest(res.latest ?? null);
@@ -50,7 +54,7 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [endDate]);
 
   const overallHealthScore = latest
     ? Math.round(
@@ -104,13 +108,23 @@ export function Dashboard() {
         )}
 
         {/* Header - always visible */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">
-            Web Tracking Data Quality Dashboard
-          </h1>
-          <p className="mt-2 text-slate-300">
-            Monitor the health and quality of your tracking events
-          </p>
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-white">
+              PULSE
+            </h1>
+            <p className="mt-2 text-slate-300">
+              Performance & Unified Logging Surveillance Engine
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-slate-300">
+            <span className="text-sm">Date:</span>
+            <DatePicker
+              value={endDate}
+              onChange={setEndDate}
+              placeholder="Select end date"
+            />
+          </label>
         </div>
 
         {/* Overall Health Score */}
@@ -150,7 +164,37 @@ export function Dashboard() {
                 </div>
                 <div className="h-64 md:h-80">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
+                    <AreaChart data={chartData}>
+                      <defs>
+                        {[
+                          "#22c55e",
+                          "#3b82f6",
+                          "#a855f7",
+                          "#f59e0b",
+                          "#ef4444",
+                          "#06b6d4",
+                        ].map((color, i) => (
+                          <linearGradient
+                            key={i}
+                            id={`fill-${i}`}
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor={color}
+                              stopOpacity={0.35}
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor={color}
+                              stopOpacity={0.05}
+                            />
+                          </linearGradient>
+                        ))}
+                      </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
                       <XAxis
                         dataKey="date"
@@ -171,7 +215,7 @@ export function Dashboard() {
                         labelStyle={{ color: "#e2e8f0" }}
                       />
                       <Legend />
-                      {EVENTS.filter((ev) => visibleEvents.has(ev)).map((ev, i) => {
+                      {EVENTS.filter((ev) => visibleEvents.has(ev)).map((ev) => {
                         const colors = [
                           "#22c55e",
                           "#3b82f6",
@@ -180,19 +224,23 @@ export function Dashboard() {
                           "#ef4444",
                           "#06b6d4",
                         ];
+                        const idx = EVENTS.indexOf(ev);
+                        const color = colors[idx % colors.length];
+                        const fillId = `url(#fill-${idx % colors.length})`;
                         return (
-                          <Line
+                          <Area
                             key={ev}
                             type="monotone"
                             dataKey={ev}
                             name={ev.replace(/_/g, " ")}
-                            stroke={colors[i % colors.length]}
+                            stroke={color}
                             strokeWidth={2}
-                            dot={{ fill: colors[i % colors.length] }}
+                            fill={fillId}
+                            dot={{ fill: color }}
                           />
                         );
                       })}
-                    </LineChart>
+                    </AreaChart>
                   </ResponsiveContainer>
                 </div>
               </>

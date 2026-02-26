@@ -46,8 +46,13 @@ export interface DashboardResponse {
   trend: SummaryRow[];
 }
 
-export async function fetchDashboard(days = 7): Promise<DashboardResponse> {
-  return fetchJson<DashboardResponse>(`${API_BASE}/dashboard?days=${days}`);
+export async function fetchDashboard(
+  days = 7,
+  endDate?: string
+): Promise<DashboardResponse> {
+  const params = new URLSearchParams({ days: String(days) });
+  if (endDate) params.set("to", endDate);
+  return fetchJson<DashboardResponse>(`${API_BASE}/dashboard?${params}`);
 }
 
 export async function fetchSummaryLatest(): Promise<SummaryRow | null> {

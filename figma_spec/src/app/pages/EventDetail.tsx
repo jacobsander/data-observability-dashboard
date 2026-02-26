@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { ArrowLeft } from "lucide-react";
 import { ParameterQualityCard } from "../components/ParameterQualityCard";
+import { DatePicker } from "../components/DatePicker";
 import { fetchDrilldown, fetchSummaryLatest } from "../api";
 import type { DrilldownRow } from "../api";
 
@@ -163,11 +164,10 @@ export function EventDetail() {
             </div>
             <label className="flex items-center gap-2 text-slate-300">
               <span className="text-sm">Date:</span>
-              <input
-                type="date"
+              <DatePicker
                 value={date}
-                onChange={(e) => handleDateChange(e.target.value)}
-                className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-white focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                onChange={handleDateChange}
+                placeholder="Select date"
               />
             </label>
           </div>

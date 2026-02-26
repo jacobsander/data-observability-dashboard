@@ -32,11 +32,18 @@ def summary():
 
 @bp.route("/dashboard", methods=["GET"])
 def dashboard():
-    """GET /api/dashboard?days=7 - combined latest + trend in one response (one BQ query)."""
+    """GET /api/dashboard?days=7&to=YYYY-MM-DD - combined latest + trend in one response."""
     days = request.args.get("days", "7", type=int)
     days = max(1, min(30, days))
 
-    end = date.today()
+    end_str = request.args.get("to")
+    if end_str:
+        try:
+            end = date.fromisoformat(end_str)
+        except ValueError:
+            end = date.today()
+    else:
+        end = date.today()
     start = end - timedelta(days=days - 1)
     date_from = start.isoformat()
     date_to = end.isoformat()
