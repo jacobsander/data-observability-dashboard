@@ -1,6 +1,8 @@
 """BigQuery client and query helpers for GA4 validation data."""
 
 import os
+import re
+from datetime import datetime
 from typing import Any
 
 from google.cloud import bigquery
@@ -21,6 +23,28 @@ EVENTS = [
     "begin_checkout",
     "purchase",
 ]
+
+
+def _normalize_event_name(raw: str) -> str:
+    """Normalize event name: replace spaces with underscores, lowercase."""
+    if not raw or not isinstance(raw, str):
+        return ""
+    return raw.strip().lower().replace(" ", "_")
+
+
+def _validate_drilldown_inputs(date_str: str, event_name: str) -> None:
+    """Validate date and event_name for drilldown query. Raises ValueError if invalid."""
+    normalized = _normalize_event_name(event_name)
+    if normalized not in EVENTS:
+        raise ValueError(
+            f"Invalid event_name: '{event_name}'. Must be one of: {', '.join(EVENTS)}"
+        )
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
+        raise ValueError(f"Invalid date format: '{date_str}'. Use YYYY-MM-DD.")
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError as e:
+        raise ValueError(f"Invalid date: '{date_str}'. {e}") from e
 
 
 def get_client() -> bigquery.Client:
@@ -99,6 +123,8 @@ def query_summary_latest() -> dict[str, Any] | None:
 
 def query_drilldown(date: str, event_name: str) -> list[dict[str, Any]]:
     """Fetch drill-down rows for one event from fct_ga4_validation."""
+    _validate_drilldown_inputs(date, event_name)
+    normalized_event = _normalize_event_name(event_name)
     client = get_client()
     query = f"""
     SELECT date, event_name, param_name, qa_status, event_count, invalid_count
@@ -109,7 +135,7 @@ def query_drilldown(date: str, event_name: str) -> list[dict[str, Any]]:
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
             bigquery.ScalarQueryParameter("date", "DATE", date),
-            bigquery.ScalarQueryParameter("event_name", "STRING", event_name),
+            bigquery.ScalarQueryParameter("event_name", "STRING", normalized_event),
         ]
     )
     result = client.query(query, job_config=job_config)

@@ -34,49 +34,55 @@ export function EventDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadData = async (d: string) => {
+    if (!eventName) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const rows = await fetchDrilldown(d, eventName);
+      setDrilldown(rows);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!eventName) return;
     let cancelled = false;
+
+    const run = async () => {
+      let d = date || dateFromState ?? "";
+      if (!d) {
+        const latest = await fetchSummaryLatest();
+        d = latest?.date ?? new Date().toISOString().slice(0, 10);
+        if (!cancelled) setDate(d);
+      }
+      const rows = await fetchDrilldown(d, eventName);
+      if (!cancelled) setDrilldown(rows);
+    };
+
     setLoading(true);
     setError(null);
-
-    if (dateFromState) {
-      setDate(dateFromState);
-      fetchDrilldown(dateFromState, eventName)
-        .then((rows) => {
-          if (!cancelled) setDrilldown(rows);
-        })
-        .catch((err) => {
-          if (!cancelled)
-            setError(err instanceof Error ? err.message : "Failed to load data");
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    } else {
-      fetchSummaryLatest()
-        .then((latest) => {
-          const d = latest?.date ?? new Date().toISOString().slice(0, 10);
-          if (cancelled) return;
-          setDate(d);
-          return fetchDrilldown(d, eventName);
-        })
-        .then((rows) => {
-          if (rows && !cancelled) setDrilldown(rows);
-        })
-        .catch((err) => {
-          if (!cancelled)
-            setError(err instanceof Error ? err.message : "Failed to load data");
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    }
+    run()
+      .catch((err) => {
+        if (!cancelled)
+          setError(err instanceof Error ? err.message : "Failed to load data");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
     return () => {
       cancelled = true;
     };
   }, [eventName, dateFromState]);
+
+  const handleDateChange = (newDate: string) => {
+    setDate(newDate);
+    loadData(newDate);
+  };
 
   const parameters = drilldown.map((row) => ({
     name: row.param_name,
@@ -146,12 +152,25 @@ export function EventDetail() {
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white capitalize">
-            {eventName?.replace(/_/g, " ")} Event
-          </h1>
-          <p className="mt-2 text-slate-300">
-            Parameter quality breakdown {date && `• ${date}`}
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-white capitalize">
+                {eventName?.replace(/_/g, " ")} Event
+              </h1>
+              <p className="mt-2 text-slate-300">
+                Parameter quality breakdown {date && `• ${date}`}
+              </p>
+            </div>
+            <label className="flex items-center gap-2 text-slate-300">
+              <span className="text-sm">Date:</span>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => handleDateChange(e.target.value)}
+                className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-white focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+              />
+            </label>
+          </div>
         </div>
 
         {/* Summary Card */}
@@ -228,7 +247,10 @@ export function EventDetail() {
             ))}
           </div>
           {parameters.length === 0 && !error && (
-            <p className="text-slate-400">No parameter data available for this event.</p>
+            <p className="text-slate-400">
+              No parameter data available for this event on {date || "the selected date"}.
+              Try selecting a different date with data from the dashboard.
+            </p>
           )}
         </div>
       </div>
