@@ -1,0 +1,7 @@
+{
+  "name": "observability-layer-ui",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix figma_spec"
+  }
+}
