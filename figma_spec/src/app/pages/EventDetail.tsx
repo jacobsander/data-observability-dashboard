@@ -53,7 +53,7 @@ export function EventDetail() {
     let cancelled = false;
 
     const run = async () => {
-      let d = date || dateFromState ?? "";
+      let d = date || dateFromState || "";
       if (!d) {
         const latest = await fetchSummaryLatest();
         d = latest?.date ?? new Date().toISOString().slice(0, 10);
