@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useLocation, Link } from "react-router";
 import {
   AreaChart,
@@ -7,6 +7,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
 } from "recharts";
 import { ArrowLeft } from "lucide-react";
@@ -26,22 +27,50 @@ function missingPercentFromRow(row: DrilldownRow): number {
   return Math.round(((row.invalid_count || 0) / total) * 1000) / 10;
 }
 
+/** Last N dates ending at endDate (YYYY-MM-DD), oldest first */
+function dateRange(endDate: string, days: number): string[] {
+  const end = new Date(endDate + "T12:00:00");
+  const result: string[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(end);
+    d.setDate(d.getDate() - i);
+    result.push(d.toISOString().slice(0, 10));
+  }
+  return result;
+}
+
 export function EventDetail() {
   const { eventName } = useParams<{ eventName: string }>();
   const location = useLocation();
   const dateFromState = (location.state as { date?: string } | null)?.date;
   const [drilldown, setDrilldown] = useState<DrilldownRow[]>([]);
+  const [drilldownByDate, setDrilldownByDate] = useState<Map<string, DrilldownRow[]>>(new Map());
   const [date, setDate] = useState<string>(dateFromState ?? "");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [visibleTopOffenders, setVisibleTopOffenders] = useState<Set<string>>(new Set());
 
   const loadData = async (d: string) => {
     if (!eventName) return;
     setLoading(true);
     setError(null);
     try {
-      const rows = await fetchDrilldown(d, eventName);
+      const dates = dateRange(d, 7);
+      const allRows = await Promise.all(
+        dates.map((dt) => fetchDrilldown(dt, eventName))
+      );
+      const rows = allRows[allRows.length - 1];
       setDrilldown(rows);
+      const byDate = new Map<string, DrilldownRow[]>();
+      dates.forEach((dt, i) => byDate.set(dt, allRows[i]));
+      setDrilldownByDate(byDate);
+      setVisibleTopOffenders((prev) => {
+        const top5 = [...rows]
+          .sort((a, b) => missingPercentFromRow(b) - missingPercentFromRow(a))
+          .slice(0, 5)
+          .map((r) => r.param_name);
+        return new Set(top5.length > 0 ? top5 : prev);
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
@@ -58,10 +87,24 @@ export function EventDetail() {
       if (!d) {
         const latest = await fetchSummaryLatest();
         d = latest?.date ?? new Date().toISOString().slice(0, 10);
-        if (!cancelled) setDate(d);
       }
-      const rows = await fetchDrilldown(d, eventName);
-      if (!cancelled) setDrilldown(rows);
+      if (!cancelled && !date) setDate(d);
+      const dates = dateRange(d, 7);
+      const allRows = await Promise.all(
+        dates.map((dt) => fetchDrilldown(dt, eventName))
+      );
+      const rows = allRows[allRows.length - 1];
+      if (!cancelled) {
+        setDrilldown(rows);
+        const byDate = new Map<string, DrilldownRow[]>();
+        dates.forEach((dt, i) => byDate.set(dt, allRows[i]));
+        setDrilldownByDate(byDate);
+        const top5 = [...rows]
+          .sort((a, b) => missingPercentFromRow(b) - missingPercentFromRow(a))
+          .slice(0, 5)
+          .map((r) => r.param_name);
+        setVisibleTopOffenders(new Set(top5));
+      }
     };
 
     setLoading(true);
@@ -96,13 +139,39 @@ export function EventDetail() {
       ? parameters.reduce((sum, p) => sum + p.quality, 0) / parameters.length
       : 0;
 
-  const topOffenders = [...drilldown]
-    .sort((a, b) => missingPercentFromRow(b) - missingPercentFromRow(a))
-    .slice(0, 5)
-    .map((row) => ({
-      name: row.param_name.replace(/_/g, " "),
-      missing: missingPercentFromRow(row),
-    }));
+  const topOffenderParams = useMemo(
+    () =>
+      [...drilldown]
+        .sort((a, b) => missingPercentFromRow(b) - missingPercentFromRow(a))
+        .slice(0, 5)
+        .map((row) => row.param_name),
+    [drilldown]
+  );
+
+  const topOffendersChartData = useMemo(() => {
+    const dates = Array.from(drilldownByDate.keys()).sort();
+    return dates.map((dt) => {
+      const rows = drilldownByDate.get(dt) ?? [];
+      const rowByParam = new Map(rows.map((r) => [r.param_name, r]));
+      const point: Record<string, string | number> = {
+        date: dt.slice(5),
+      };
+      topOffenderParams.forEach((param) => {
+        const row = rowByParam.get(param);
+        point[param] = row ? missingPercentFromRow(row) : 0;
+      });
+      return point;
+    });
+  }, [drilldownByDate, topOffenderParams]);
+
+  const toggleTopOffender = (param: string) => {
+    setVisibleTopOffenders((prev) => {
+      const next = new Set(prev);
+      if (next.has(param)) next.delete(param);
+      else next.add(param);
+      return next;
+    });
+  };
 
   if (loading) {
     return (
@@ -187,37 +256,58 @@ export function EventDetail() {
           </div>
         </div>
 
-        {/* Top Offenders - Line Curve Chart (matches front page style) */}
-        {topOffenders.length > 0 && (
+        {/* Top Offenders - Line curves over time (like front page) */}
+        {topOffenderParams.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-xl font-semibold text-white mb-4">Top Offenders</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">
+              Top Offenders (Last 7 Days)
+            </h2>
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <div className="flex flex-wrap gap-4 mb-4">
+                {topOffenderParams.map((param) => (
+                  <label
+                    key={param}
+                    className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={visibleTopOffenders.has(param)}
+                      onChange={() => toggleTopOffender(param)}
+                      className="rounded"
+                    />
+                    <span>{param.replace(/_/g, " ")}</span>
+                  </label>
+                ))}
+              </div>
               <div className="h-64 md:h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={topOffenders}
-                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                  >
+                  <AreaChart data={topOffendersChartData}>
                     <defs>
-                      <linearGradient
-                        id="topOffendersFill"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.35} />
-                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
-                      </linearGradient>
+                      {[
+                        "#ef4444",
+                        "#f59e0b",
+                        "#a855f7",
+                        "#3b82f6",
+                        "#06b6d4",
+                      ].map((color, i) => (
+                        <linearGradient
+                          key={i}
+                          id={`topOffender-fill-${i}`}
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+                          <stop offset="100%" stopColor={color} stopOpacity={0.05} />
+                        </linearGradient>
+                      ))}
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
                     <XAxis
-                      dataKey="name"
+                      dataKey="date"
                       stroke="#94a3b8"
                       tick={{ fill: "#94a3b8" }}
-                      angle={-45}
-                      textAnchor="end"
-                      height={70}
                     />
                     <YAxis
                       domain={[0, 100]}
@@ -231,18 +321,35 @@ export function EventDetail() {
                         border: "1px solid #475569",
                         borderRadius: "8px",
                       }}
-                      formatter={(value: number) => [`${value}% missing`, "Missing %"]}
+                      formatter={(value: number) => `${value}% missing`}
                       labelStyle={{ color: "#e2e8f0" }}
                     />
-                    <Area
-                      type="monotone"
-                      dataKey="missing"
-                      name="Missing %"
-                      stroke="#ef4444"
-                      strokeWidth={2}
-                      fill="url(#topOffendersFill)"
-                      dot={{ fill: "#ef4444" }}
-                    />
+                    <Legend />
+                    {topOffenderParams
+                      .filter((param) => visibleTopOffenders.has(param))
+                      .map((param, idx) => {
+                        const colors = [
+                          "#ef4444",
+                          "#f59e0b",
+                          "#a855f7",
+                          "#3b82f6",
+                          "#06b6d4",
+                        ];
+                        const color = colors[idx % colors.length];
+                        const fillId = `url(#topOffender-fill-${idx % colors.length})`;
+                        return (
+                          <Area
+                            key={param}
+                            type="monotone"
+                            dataKey={param}
+                            name={param.replace(/_/g, " ")}
+                            stroke={color}
+                            strokeWidth={2}
+                            fill={fillId}
+                            dot={{ fill: color }}
+                          />
+                        );
+                      })}
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
