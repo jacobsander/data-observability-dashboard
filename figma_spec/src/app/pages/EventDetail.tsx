@@ -11,7 +11,6 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { ArrowLeft } from "lucide-react";
-import { ParameterQualityCard } from "../components/ParameterQualityCard";
 import { DatePicker } from "../components/DatePicker";
 import { fetchDrilldown, fetchSummaryLatest } from "../api";
 import type { DrilldownRow } from "../api";
@@ -357,24 +356,61 @@ export function EventDetail() {
           </div>
         )}
 
-        {/* Parameter Quality Cards */}
+        {/* Parameter Details Table */}
         <div>
           <h2 className="text-xl font-semibold text-white mb-4">Parameter Details</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {parameters.map((param) => (
-              <ParameterQualityCard
-                key={param.name}
-                parameterName={param.name}
-                quality={param.quality}
-                coverage={param.coverage}
-              />
-            ))}
-          </div>
-          {parameters.length === 0 && !error && (
-            <p className="text-slate-400">
-              No parameter data available for this event on {date || "the selected date"}.
-              Try selecting a different date with data from the dashboard.
-            </p>
+          {drilldown.length > 0 ? (
+            <div className="overflow-x-auto rounded-lg border border-slate-700">
+              <table className="min-w-full divide-y divide-slate-700">
+                <thead>
+                  <tr className="bg-slate-800">
+                    <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">
+                      Parameter
+                    </th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-slate-300">
+                      Events with parameter
+                    </th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-slate-300">
+                      Events missing
+                    </th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-slate-300">
+                      % with parameter
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700 bg-slate-800/50">
+                  {drilldown.map((row) => {
+                    const validCount = (row.event_count || 0) - (row.invalid_count || 0);
+                    const pct = qualityFromRow(row);
+                    const pctColor =
+                      pct >= 70 ? "text-green-400" : pct >= 50 ? "text-yellow-400" : "text-red-400";
+                    return (
+                      <tr key={row.param_name} className="hover:bg-slate-700/50 transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-white capitalize">
+                          {row.param_name.replace(/_/g, " ")}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-300 text-right">
+                          {validCount.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-300 text-right">
+                          {(row.invalid_count || 0).toLocaleString()}
+                        </td>
+                        <td className={`px-4 py-3 text-sm font-semibold text-right ${pctColor}`}>
+                          {pct.toFixed(1)}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            !error && (
+              <p className="text-slate-400">
+                No parameter data available for this event on {date || "the selected date"}.
+                Try selecting a different date with data from the dashboard.
+              </p>
+            )
           )}
         </div>
       </div>
