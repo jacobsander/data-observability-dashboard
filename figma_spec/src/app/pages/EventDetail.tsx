@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useLocation, Link } from "react-router";
 import {
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -98,7 +98,7 @@ export function EventDetail() {
 
   const topOffenders = [...drilldown]
     .sort((a, b) => missingPercentFromRow(b) - missingPercentFromRow(a))
-    .slice(0, 10)
+    .slice(0, 5)
     .map((row) => ({
       name: row.param_name.replace(/_/g, " "),
       missing: missingPercentFromRow(row),
@@ -187,31 +187,43 @@ export function EventDetail() {
           </div>
         </div>
 
-        {/* Top Offenders Bar Chart */}
+        {/* Top Offenders - Line Curve Chart (matches front page style) */}
         {topOffenders.length > 0 && (
           <div className="mb-8">
             <h2 className="text-xl font-semibold text-white mb-4">Top Offenders</h2>
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
               <div className="h-64 md:h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
+                  <AreaChart
                     data={topOffenders}
-                    layout="vertical"
-                    margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                   >
+                    <defs>
+                      <linearGradient
+                        id="topOffendersFill"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.35} />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
                     <XAxis
-                      type="number"
-                      domain={[0, 100]}
-                      stroke="#94a3b8"
-                      tick={{ fill: "#94a3b8" }}
-                    />
-                    <YAxis
-                      type="category"
                       dataKey="name"
                       stroke="#94a3b8"
                       tick={{ fill: "#94a3b8" }}
-                      width={70}
+                      angle={-45}
+                      textAnchor="end"
+                      height={70}
+                    />
+                    <YAxis
+                      domain={[0, 100]}
+                      stroke="#94a3b8"
+                      tick={{ fill: "#94a3b8" }}
+                      tickFormatter={(v) => `${v}%`}
                     />
                     <Tooltip
                       contentStyle={{
@@ -220,13 +232,18 @@ export function EventDetail() {
                         borderRadius: "8px",
                       }}
                       formatter={(value: number) => [`${value}% missing`, "Missing %"]}
+                      labelStyle={{ color: "#e2e8f0" }}
                     />
-                    <Bar
+                    <Area
+                      type="monotone"
                       dataKey="missing"
-                      fill="#ef4444"
-                      radius={[0, 4, 4, 0]}
+                      name="Missing %"
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      fill="url(#topOffendersFill)"
+                      dot={{ fill: "#ef4444" }}
                     />
-                  </BarChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
