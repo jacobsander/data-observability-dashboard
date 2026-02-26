@@ -49,12 +49,8 @@ def query_summary_range(date_from: str, date_to: str) -> list[dict[str, Any]]:
     client = _get_client()
     query = f"""
     SELECT date,
-           session_start_pct_events_missing, session_start_pct_params_missing,
-           page_view_pct_events_missing, page_view_pct_params_missing,
-           view_item_pct_events_missing, view_item_pct_params_missing,
-           add_to_cart_pct_events_missing, add_to_cart_pct_params_missing,
-           begin_checkout_pct_events_missing, begin_checkout_pct_params_missing,
-           purchase_pct_events_missing, purchase_pct_params_missing
+           session_start_overall_score, page_view_overall_score, view_item_overall_score,
+           add_to_cart_overall_score, begin_checkout_overall_score, purchase_overall_score
     FROM `{TABLE_SUMMARY}`
     WHERE date >= @date_from AND date <= @date_to
     ORDER BY date
@@ -70,8 +66,7 @@ def query_summary_range(date_from: str, date_to: str) -> list[dict[str, Any]]:
     for row in result:
         d = {"date": str(row.date)}
         for ev in EVENTS:
-            d[f"{ev}_pct_events_missing"] = float(row.get(f"{ev}_pct_events_missing") or 0)
-            d[f"{ev}_pct_params_missing"] = float(row.get(f"{ev}_pct_params_missing") or 0)
+            d[f"{ev}_overall_score"] = float(row.get(f"{ev}_overall_score") or 0)
         rows.append(d)
     return rows
 
@@ -91,8 +86,7 @@ def query_summary_latest() -> dict[str, Any] | None:
     row = rows[0]
     d = {"date": str(row.date)}
     for ev in EVENTS:
-        d[f"{ev}_pct_events_missing"] = float(row.get(f"{ev}_pct_events_missing") or 0)
-        d[f"{ev}_pct_params_missing"] = float(row.get(f"{ev}_pct_params_missing") or 0)
+        d[f"{ev}_overall_score"] = float(row.get(f"{ev}_overall_score") or 0)
     return d
 
 

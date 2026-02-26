@@ -5,7 +5,7 @@ For use when building a Flask backend (or other app) that reads from these
 tables and displays data via Bootstrap / Chart.js (or similar).
 --------------------------------------------------------------------------------
 Source: dbt project ga4_observability_poc (observability-layer repo)
-Updated: 2026-02-25
+Updated: 2026-02-26
 ================================================================================
 
 1. BIGQUERY CONNECTION
@@ -26,7 +26,7 @@ Updated: 2026-02-25
   | Table                              | Grain / Purpose                          |
   |------------------------------------|------------------------------------------|
   | ga4_qa_requirements               | Seed: which params are required per event |
-  | stg_moomin__events                | Staging: raw key events (one day)         |
+  | stg_moomin__events                | Staging: raw key events (past 5 days by default, deduped) |
   | int_moomin__event_param_status    | Per-event, per-param status (detail)       |
   | fct_ga4_validation               | One row per (date, event, param) + status |
   | fct_ga4_validation_summary_daily | One row per date, wide % columns          |
@@ -52,7 +52,10 @@ Updated: 2026-02-25
 
 
 3.2 stg_moomin__events
-  Purpose: Staging table of GA4 events for the key event types (one run_date).
+  Purpose: Staging table of GA4 events for the key event types. Loads run_date
+           and lookback_days (default 5) from events_* and events_intraday_*.
+           Deduplicates by (date, event_timestamp, event_name) so incremental
+           downstream models receive unique keys.
   Grain:   One row per event instance (date, event_timestamp, event_name, ...).
 
   Columns (main): date, event_timestamp, event_name, user_pseudo_id,
@@ -112,38 +115,46 @@ Updated: 2026-02-25
 
 
 3.5 fct_ga4_validation_summary_daily
-  Purpose: One row per date with percentage columns per event. Use for
-           overview charts (time series, compare events).
+  Purpose: One row per date with percentage columns and overall score per event.
+           Use for overview charts (time series, compare events). Holds past
+           5 days by default when run with lookback_days: 5.
   Grain:   One row per date.
 
   Columns:
-    date                              DATE
-    session_start_pct_params_missing  FLOAT64   % of required params that are MISSING_KEY
-    session_start_pct_events_missing   FLOAT64   % of session_start events with ≥1 param missing
-    page_view_pct_params_missing       FLOAT64
-    page_view_pct_events_missing       FLOAT64
-    view_item_pct_params_missing       FLOAT64
-    view_item_pct_events_missing       FLOAT64
-    add_to_cart_pct_params_missing     FLOAT64
-    add_to_cart_pct_events_missing     FLOAT64
+    date                                DATE
+    session_start_pct_params_missing    FLOAT64   % of required params that are MISSING_KEY
+    session_start_pct_events_missing    FLOAT64   % of session_start events with ≥1 param missing
+    session_start_overall_score         FLOAT64   avg of inverse missing (0–100, higher = better)
+    page_view_pct_params_missing        FLOAT64
+    page_view_pct_events_missing        FLOAT64
+    page_view_overall_score             FLOAT64
+    view_item_pct_params_missing        FLOAT64
+    view_item_pct_events_missing        FLOAT64
+    view_item_overall_score             FLOAT64
+    add_to_cart_pct_params_missing      FLOAT64
+    add_to_cart_pct_events_missing      FLOAT64
+    add_to_cart_overall_score           FLOAT64
     begin_checkout_pct_params_missing   FLOAT64
-    begin_checkout_pct_events_missing  FLOAT64
-    purchase_pct_params_missing        FLOAT64
-    purchase_pct_events_missing        FLOAT64
+    begin_checkout_pct_events_missing   FLOAT64
+    begin_checkout_overall_score        FLOAT64
+    purchase_pct_params_missing         FLOAT64
+    purchase_pct_events_missing         FLOAT64
+    purchase_overall_score              FLOAT64
 
   Naming:
-    {event}_pct_params_missing  = share of required parameters for that event that are MISSING_KEY (0–100).
-    {event}_pct_events_missing  = share of event instances that had at least one required param not VALID (0–100).
+    {event}_pct_params_missing   = share of required parameters for that event that are MISSING_KEY (0–100).
+    {event}_pct_events_missing   = share of event instances that had at least one required param not VALID (0–100).
+    {event}_overall_score        = avg of (100 - pct_params_missing) and (100 - pct_events_missing), 0–100 (higher = better).
 
   Suggested queries for Flask:
-    - Overview time series (e.g. last 30 days):
+    - Overview time series (e.g. last 30 days, with overall_score for charts):
       SELECT date,
-             session_start_pct_events_missing, session_start_pct_params_missing,
-             page_view_pct_events_missing, page_view_pct_params_missing,
-             view_item_pct_events_missing, view_item_pct_params_missing,
-             add_to_cart_pct_events_missing, add_to_cart_pct_params_missing,
-             begin_checkout_pct_events_missing, begin_checkout_pct_params_missing,
-             purchase_pct_events_missing, purchase_pct_params_missing
+             session_start_pct_events_missing, session_start_pct_params_missing, session_start_overall_score,
+             page_view_pct_events_missing, page_view_pct_params_missing, page_view_overall_score,
+             view_item_pct_events_missing, view_item_pct_params_missing, view_item_overall_score,
+             add_to_cart_pct_events_missing, add_to_cart_pct_params_missing, add_to_cart_overall_score,
+             begin_checkout_pct_events_missing, begin_checkout_pct_params_missing, begin_checkout_overall_score,
+             purchase_pct_events_missing, purchase_pct_params_missing, purchase_overall_score
       FROM `mimetic-perigee-290610.obs_layer_poc_moomin.fct_ga4_validation_summary_daily`
       WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
       ORDER BY date;
@@ -162,7 +173,7 @@ Updated: 2026-02-25
 --------------------------------------------------------------------------------
   - GET /api/summary?from=YYYY-MM-DD&to=YYYY-MM-DD
     Returns: rows from fct_ga4_validation_summary_daily in range.
-    Use: Line/bar charts over time; compare events (pct_events_missing or pct_params_missing).
+    Use: Line/bar charts over time; compare events (pct_events_missing, pct_params_missing, or overall_score).
 
   - GET /api/summary/latest
     Returns: single row, latest date, from fct_ga4_validation_summary_daily.

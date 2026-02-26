@@ -16,18 +16,12 @@ async function fetchJson<T>(url: string): Promise<T> {
 
 export interface SummaryRow {
   date: string;
-  session_start_pct_events_missing: number;
-  session_start_pct_params_missing: number;
-  page_view_pct_events_missing: number;
-  page_view_pct_params_missing: number;
-  view_item_pct_events_missing: number;
-  view_item_pct_params_missing: number;
-  add_to_cart_pct_events_missing: number;
-  add_to_cart_pct_params_missing: number;
-  begin_checkout_pct_events_missing: number;
-  begin_checkout_pct_params_missing: number;
-  purchase_pct_events_missing: number;
-  purchase_pct_params_missing: number;
+  session_start_overall_score: number;
+  page_view_overall_score: number;
+  view_item_overall_score: number;
+  add_to_cart_overall_score: number;
+  begin_checkout_overall_score: number;
+  purchase_overall_score: number;
 }
 
 export const EVENTS = [
@@ -39,11 +33,11 @@ export const EVENTS = [
   "purchase",
 ] as const;
 
-/** Quality % = 100 - pct_events_missing */
+/** Returns overall_score for the event (0–100, higher = better) */
 export function qualityFromSummary(row: SummaryRow, event: string): number {
-  const key = `${event}_pct_events_missing` as keyof SummaryRow;
-  const missing = Number(row[key]) ?? 0;
-  return Math.round((100 - missing) * 10) / 10;
+  const key = `${event}_overall_score` as keyof SummaryRow;
+  const score = Number(row[key]) ?? 0;
+  return Math.round(score * 10) / 10;
 }
 
 export async function fetchSummary(from: string, to: string): Promise<SummaryRow[]> {

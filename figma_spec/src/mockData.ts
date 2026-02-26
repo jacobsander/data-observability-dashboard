@@ -13,18 +13,12 @@ function formatDate(d: Date): string {
 function makeSummaryRow(date: string, overrides?: Partial<SummaryRow>): SummaryRow {
   const base: SummaryRow = {
     date,
-    session_start_pct_events_missing: 0,
-    session_start_pct_params_missing: 0,
-    page_view_pct_events_missing: 0,
-    page_view_pct_params_missing: 0,
-    view_item_pct_events_missing: 0,
-    view_item_pct_params_missing: 0,
-    add_to_cart_pct_events_missing: 0,
-    add_to_cart_pct_params_missing: 0,
-    begin_checkout_pct_events_missing: 0,
-    begin_checkout_pct_params_missing: 0,
-    purchase_pct_events_missing: 0,
-    purchase_pct_params_missing: 0,
+    session_start_overall_score: 100,
+    page_view_overall_score: 100,
+    view_item_overall_score: 100,
+    add_to_cart_overall_score: 100,
+    begin_checkout_overall_score: 100,
+    purchase_overall_score: 100,
   };
   return { ...base, ...overrides };
 }
@@ -48,11 +42,10 @@ export function getMockSummaryRange(from: string, to: string): SummaryRow[] {
     const dayIndex = Math.floor((d.getTime() - start.getTime()) / 86400000);
     const variation = Math.sin(dayIndex * 0.3) * 3;
     const overrides: Partial<SummaryRow> = {};
-    const baseMissing = [2, 5, 8, 12, 15, 22];
+    const baseScores = [98, 95, 92, 88, 85, 78];
     eventKeys.forEach((ev, i) => {
-      const val = Math.max(0, Math.min(100, baseMissing[i] + variation + (dayIndex % 3)));
-      overrides[`${ev}_pct_events_missing` as keyof SummaryRow] = val;
-      overrides[`${ev}_pct_params_missing` as keyof SummaryRow] = val * 1.1;
+      const val = Math.max(0, Math.min(100, baseScores[i] - variation - (dayIndex % 3)));
+      overrides[`${ev}_overall_score` as keyof SummaryRow] = val;
     });
     rows.push(makeSummaryRow(dateStr, overrides));
   }
@@ -62,18 +55,12 @@ export function getMockSummaryRange(from: string, to: string): SummaryRow[] {
 export function getMockSummaryLatest(): SummaryRow {
   const today = formatDate(new Date());
   return makeSummaryRow(today, {
-    session_start_pct_events_missing: 1.5,
-    session_start_pct_params_missing: 1.8,
-    page_view_pct_events_missing: 4.2,
-    page_view_pct_params_missing: 4.5,
-    view_item_pct_events_missing: 7.1,
-    view_item_pct_params_missing: 7.8,
-    add_to_cart_pct_events_missing: 11.3,
-    add_to_cart_pct_params_missing: 12.1,
-    begin_checkout_pct_events_missing: 14.0,
-    begin_checkout_pct_params_missing: 15.2,
-    purchase_pct_events_missing: 18.5,
-    purchase_pct_params_missing: 20.1,
+    session_start_overall_score: 98.5,
+    page_view_overall_score: 95.5,
+    view_item_overall_score: 92.5,
+    add_to_cart_overall_score: 88.4,
+    begin_checkout_overall_score: 85.4,
+    purchase_overall_score: 80.7,
   });
 }
 
