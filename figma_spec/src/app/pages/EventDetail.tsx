@@ -385,7 +385,7 @@ export function EventDetail() {
                     const validCount = (row.event_count || 0) - (row.invalid_count || 0);
                     const pct = qualityFromRow(row);
                     const pctColor =
-                      pct >= 70 ? "text-green-400" : pct >= 50 ? "text-yellow-400" : "text-red-400";
+                      pct >= 67 ? "text-green-400" : pct >= 34 ? "text-yellow-400" : "text-red-400";
                     return (
                       <tr key={row.param_name} className="hover:bg-slate-700/50 transition-colors">
                         <td className="px-4 py-3 text-sm font-medium text-white capitalize">

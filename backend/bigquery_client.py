@@ -191,6 +191,36 @@ def query_drilldown(date: str, event_name: str) -> list[dict[str, Any]]:
     ]
 
 
+def query_top_missing_params(date: str, limit: int = 3) -> list[dict[str, Any]]:
+    """Fetch top N (event_name, param_name) pairs with highest % missing for a date.
+    Returns rows with pct_missing = 100 * invalid_count / event_count, ordered descending."""
+    limit = max(1, min(100, limit))
+    client = get_client()
+    query = f"""
+    SELECT date, event_name, param_name, event_count, invalid_count,
+           100.0 * invalid_count / NULLIF(event_count, 0) AS pct_missing
+    FROM `{TABLE_VALIDATION}`
+    WHERE date = @date
+    ORDER BY pct_missing DESC
+    LIMIT {limit}
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[bigquery.ScalarQueryParameter("date", "DATE", date)]
+    )
+    result = client.query(query, job_config=job_config)
+    return [
+        {
+            "date": str(row.date),
+            "event_name": str(row.event_name or ""),
+            "param_name": str(row.param_name or ""),
+            "event_count": int(row.event_count or 0),
+            "invalid_count": int(row.invalid_count or 0),
+            "pct_missing": round(float(row.pct_missing or 0), 1),
+        }
+        for row in result
+    ]
+
+
 def query_issues(date: str) -> list[dict[str, Any]]:
     """Fetch non-VALID rows for a date (alerts view)."""
     client = get_client()

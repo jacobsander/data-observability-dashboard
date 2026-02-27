@@ -41,10 +41,20 @@ export async function fetchSummary(from: string, to: string): Promise<SummaryRow
   return fetchJson<SummaryRow[]>(`${API_BASE}/summary?from=${from}&to=${to}`);
 }
 
+export interface TopMissingRow {
+  date: string;
+  event_name: string;
+  param_name: string;
+  event_count: number;
+  invalid_count: number;
+  pct_missing: number;
+}
+
 export interface DashboardResponse {
   latest: SummaryRow | null;
   trend: SummaryRow[];
   previous: SummaryRow | null;
+  topMissing?: TopMissingRow[];
 }
 
 export async function fetchDashboard(options: {

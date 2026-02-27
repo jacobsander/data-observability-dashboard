@@ -18,12 +18,14 @@ import {
   fetchDashboard,
   qualityFromSummary,
   type SummaryRow,
+  type TopMissingRow,
 } from "../api";
 
 export function Dashboard() {
   const [latest, setLatest] = useState<SummaryRow | null>(null);
   const [previous, setPrevious] = useState<SummaryRow | null>(null);
   const [trendData, setTrendData] = useState<SummaryRow[]>([]);
+  const [topMissing, setTopMissing] = useState<TopMissingRow[] | undefined>(undefined);
   const [visibleEvents, setVisibleEvents] = useState<Set<string>>(new Set(EVENTS));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,7 @@ export function Dashboard() {
           setLatest(res.latest ?? null);
           setTrendData(res.trend);
           setPrevious(res.previous ?? null);
+          setTopMissing(res.topMissing);
         }
       })
       .catch((err) => {
@@ -153,6 +156,7 @@ export function Dashboard() {
             <HealthScore
               score={overallHealthScore}
               previousScore={previousOverallHealthScore}
+              topMissing={topMissing}
             />
           )}
         </div>

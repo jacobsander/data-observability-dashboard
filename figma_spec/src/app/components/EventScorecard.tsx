@@ -14,9 +14,8 @@ interface EventScorecardProps {
 
 export function EventScorecard({ eventName, percentage, previousPercentage, index = 0, latestDate, dateRange }: EventScorecardProps) {
   const getScoreColor = (percentage: number) => {
-    if (percentage >= 90) return "text-green-600";
-    if (percentage >= 70) return "text-emerald-600";
-    if (percentage >= 50) return "text-yellow-600";
+    if (percentage >= 67) return "text-green-600";
+    if (percentage >= 34) return "text-yellow-600";
     return "text-red-600";
   };
 
@@ -79,11 +78,9 @@ export function EventScorecard({ eventName, percentage, previousPercentage, inde
         <div className="mt-3 bg-slate-700 rounded-full h-2 overflow-hidden">
           <div
             className={`h-full ${
-              percentage >= 90
+              percentage >= 67
                 ? "bg-green-500"
-                : percentage >= 70
-                ? "bg-emerald-500"
-                : percentage >= 50
+                : percentage >= 34
                 ? "bg-yellow-500"
                 : "bg-red-500"
             }`}

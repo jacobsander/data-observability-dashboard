@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
-from lib.bigquery_queries import EVENTS, query_event_quality_range, query_summary_range
+from lib.bigquery_queries import EVENTS, query_event_quality_range, query_summary_range, query_top_missing_params
 
 
 def _latest_from_range_average(rows: list, date_to: str) -> dict | None:
@@ -77,7 +77,8 @@ class handler(BaseHTTPRequestHandler):
                 prev_rows = query_summary_range(prev_from, prev_to)
             previous = _latest_from_range_average(prev_rows, prev_to)
 
-            payload = {"latest": latest, "trend": rows, "previous": previous}
+            top_missing = query_top_missing_params(date_to, 3)
+            payload = {"latest": latest, "trend": rows, "previous": previous, "topMissing": top_missing}
 
             body = json.dumps(payload).encode("utf-8")
             self.send_response(200)

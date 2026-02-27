@@ -8,6 +8,7 @@ from backend.bigquery_client import (
     query_event_quality_range,
     query_summary_latest,
     query_summary_range,
+    query_top_missing_params,
 )
 
 bp = Blueprint("summary", __name__, url_prefix="/api")
@@ -99,7 +100,8 @@ def dashboard():
             prev_rows = query_summary_range(prev_from, prev_to)
         previous = _latest_from_range_average(prev_rows, prev_to)
 
-        payload = {"latest": latest, "trend": rows, "previous": previous}
+        top_missing = query_top_missing_params(date_to, 3)
+        payload = {"latest": latest, "trend": rows, "previous": previous, "topMissing": top_missing}
         response = jsonify(payload)
         response.headers["Cache-Control"] = "public, max-age=300"
         return response
