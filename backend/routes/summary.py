@@ -32,21 +32,38 @@ def summary():
 
 @bp.route("/dashboard", methods=["GET"])
 def dashboard():
-    """GET /api/dashboard?days=7&to=YYYY-MM-DD - combined latest + trend in one response."""
-    days = request.args.get("days", "7", type=int)
-    days = max(1, min(30, days))
+    """GET /api/dashboard - combined latest + trend. Supports:
+    - from=YYYY-MM-DD&to=YYYY-MM-DD (explicit date range)
+    - days=7&to=YYYY-MM-DD (last N days ending at to, default last 7 days)
+    """
+    from_str = request.args.get("from")
+    to_str = request.args.get("to")
 
-    end_str = request.args.get("to")
-    if end_str:
+    if from_str and to_str:
         try:
-            end = date.fromisoformat(end_str)
+            date_from = date.fromisoformat(from_str).isoformat()
+            date_to = date.fromisoformat(to_str).isoformat()
+            if date_from > date_to:
+                date_from, date_to = date_to, date_from
         except ValueError:
             end = date.today()
+            start = end - timedelta(days=6)
+            date_from = start.isoformat()
+            date_to = end.isoformat()
     else:
-        end = date.today()
-    start = end - timedelta(days=days - 1)
-    date_from = start.isoformat()
-    date_to = end.isoformat()
+        days = request.args.get("days", "7", type=int)
+        days = max(1, min(90, days))
+
+        if to_str:
+            try:
+                end = date.fromisoformat(to_str)
+            except ValueError:
+                end = date.today()
+        else:
+            end = date.today()
+        start = end - timedelta(days=days - 1)
+        date_from = start.isoformat()
+        date_to = end.isoformat()
 
     try:
         rows = query_event_quality_range(date_from, date_to)

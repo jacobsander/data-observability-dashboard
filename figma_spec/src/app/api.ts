@@ -46,12 +46,23 @@ export interface DashboardResponse {
   trend: SummaryRow[];
 }
 
-export async function fetchDashboard(
-  days = 7,
-  endDate?: string
-): Promise<DashboardResponse> {
-  const params = new URLSearchParams({ days: String(days) });
-  if (endDate) params.set("to", endDate);
+export async function fetchDashboard(options: {
+  days?: number;
+  endDate?: string;
+  from?: string;
+  to?: string;
+}): Promise<DashboardResponse> {
+  const { days = 7, endDate, from, to } = options;
+  const params = new URLSearchParams();
+
+  if (from && to) {
+    params.set("from", from);
+    params.set("to", to);
+  } else {
+    params.set("days", String(days));
+    if (endDate) params.set("to", endDate);
+  }
+
   return fetchJson<DashboardResponse>(`${API_BASE}/dashboard?${params}`);
 }
 

@@ -12,7 +12,7 @@ import {
 import { HealthScore } from "../components/HealthScore";
 import { EventScorecard } from "../components/EventScorecard";
 import { DashboardSkeleton } from "../components/DashboardSkeleton";
-import { DatePicker } from "../components/DatePicker";
+import { DateRangePicker } from "../components/DateRangePicker";
 import {
   EVENTS,
   fetchDashboard,
@@ -26,8 +26,14 @@ export function Dashboard() {
   const [visibleEvents, setVisibleEvents] = useState<Set<string>>(new Set(EVENTS));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [endDate, setEndDate] = useState<string>(() =>
-    new Date().toISOString().slice(0, 10)
+  const defaultEnd = new Date().toISOString().slice(0, 10);
+  const defaultStart = (() => {
+    const d = new Date(defaultEnd + "T12:00:00");
+    d.setDate(d.getDate() - 6);
+    return d.toISOString().slice(0, 10);
+  })();
+  const [dateRange, setDateRange] = useState<{ from: string; to: string } | null>(
+    () => ({ from: defaultStart, to: defaultEnd })
   );
 
   useEffect(() => {
@@ -35,7 +41,10 @@ export function Dashboard() {
     setLoading(true);
     setError(null);
 
-    fetchDashboard(7, endDate)
+    const options = dateRange
+      ? { from: dateRange.from, to: dateRange.to }
+      : { days: 7 };
+    fetchDashboard(options)
       .then((res) => {
         if (!cancelled) {
           setLatest(res.latest ?? null);
@@ -54,7 +63,7 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [endDate]);
+  }, [dateRange]);
 
   const overallHealthScore = latest
     ? Math.round(
@@ -118,11 +127,11 @@ export function Dashboard() {
             </p>
           </div>
           <label className="flex items-center gap-2 text-slate-300">
-            <span className="text-sm">Date:</span>
-            <DatePicker
-              value={endDate}
-              onChange={setEndDate}
-              placeholder="Select end date"
+            <span className="text-sm">Date range:</span>
+            <DateRangePicker
+              value={dateRange}
+              onChange={setDateRange}
+              placeholder="Select date range"
             />
           </label>
         </div>
@@ -139,7 +148,7 @@ export function Dashboard() {
         {/* Trend Overview - Line Chart */}
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-white mb-4">
-            Trend Overview (Last 7 Days)
+            Trend Overview
           </h2>
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
             {loading ? (

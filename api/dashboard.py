@@ -18,13 +18,36 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             params = _parse_query(self.path)
-            days = int(params.get("days") or "7")
-            days = max(1, min(30, days))
+            from_str = params.get("from")
+            to_str = params.get("to")
 
-            end = date.today()
-            start = end - timedelta(days=days - 1)
-            date_from = start.isoformat()
-            date_to = end.isoformat()
+            if from_str and to_str:
+                try:
+                    start = date.fromisoformat(from_str)
+                    end = date.fromisoformat(to_str)
+                    if start > end:
+                        start, end = end, start
+                    date_from = start.isoformat()
+                    date_to = end.isoformat()
+                except ValueError:
+                    end = date.today()
+                    start = end - timedelta(days=6)
+                    date_from = start.isoformat()
+                    date_to = end.isoformat()
+            else:
+                days = int(params.get("days") or "7")
+                days = max(1, min(90, days))
+                end_str = params.get("to")
+                if end_str:
+                    try:
+                        end = date.fromisoformat(end_str)
+                    except ValueError:
+                        end = date.today()
+                else:
+                    end = date.today()
+                start = end - timedelta(days=days - 1)
+                date_from = start.isoformat()
+                date_to = end.isoformat()
 
             rows = query_event_quality_range(date_from, date_to)
             latest = rows[-1] if rows else None
