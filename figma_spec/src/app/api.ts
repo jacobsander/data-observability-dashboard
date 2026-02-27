@@ -44,6 +44,7 @@ export async function fetchSummary(from: string, to: string): Promise<SummaryRow
 export interface DashboardResponse {
   latest: SummaryRow | null;
   trend: SummaryRow[];
+  previous: SummaryRow | null;
 }
 
 export async function fetchDashboard(options: {

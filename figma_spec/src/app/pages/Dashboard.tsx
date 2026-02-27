@@ -22,6 +22,7 @@ import {
 
 export function Dashboard() {
   const [latest, setLatest] = useState<SummaryRow | null>(null);
+  const [previous, setPrevious] = useState<SummaryRow | null>(null);
   const [trendData, setTrendData] = useState<SummaryRow[]>([]);
   const [visibleEvents, setVisibleEvents] = useState<Set<string>>(new Set(EVENTS));
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,7 @@ export function Dashboard() {
         if (!cancelled) {
           setLatest(res.latest ?? null);
           setTrendData(res.trend);
+          setPrevious(res.previous ?? null);
         }
       })
       .catch((err) => {
@@ -71,11 +73,18 @@ export function Dashboard() {
       )
     : 0;
 
+  const previousOverallHealthScore = previous
+    ? Math.round(
+        EVENTS.reduce((sum, ev) => sum + qualityFromSummary(previous, ev), 0) / EVENTS.length
+      )
+    : undefined;
+
   const eventData = latest
     ? EVENTS.map((name, index) => {
         const percentage = qualityFromSummary(latest, name);
-        const prevRow = trendData.length >= 2 ? trendData[trendData.length - 2] : null;
-        const previousPercentage = prevRow ? qualityFromSummary(prevRow, name) : undefined;
+        const previousPercentage = previous
+          ? qualityFromSummary(previous, name)
+          : undefined;
         return {
           name,
           percentage,
@@ -141,7 +150,10 @@ export function Dashboard() {
           {loading ? (
             <DashboardSkeleton.HealthScore />
           ) : (
-            <HealthScore score={overallHealthScore} />
+            <HealthScore
+              score={overallHealthScore}
+              previousScore={previousOverallHealthScore}
+            />
           )}
         </div>
 
@@ -274,6 +286,7 @@ export function Dashboard() {
                   previousPercentage={event.previousPercentage}
                   index={event.index}
                   latestDate={latest?.date}
+                  dateRange={dateRange}
                 />
               ))}
             </div>

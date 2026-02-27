@@ -11,8 +11,9 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { ArrowLeft } from "lucide-react";
-import { DatePicker } from "../components/DatePicker";
-import { fetchDrilldown, fetchSummaryLatest } from "../api";
+import { DateRangePicker } from "../components/DateRangePicker";
+import type { DateRangeValue } from "../components/DateRangePicker";
+import { fetchDrilldown } from "../api";
 import type { DrilldownRow } from "../api";
 
 function qualityFromRow(row: DrilldownRow): number {
@@ -21,94 +22,102 @@ function qualityFromRow(row: DrilldownRow): number {
   return Math.round((valid / total) * 1000) / 10;
 }
 
+/** Aggregate drilldown rows across multiple dates: sum event_count and invalid_count per param */
+function aggregateDrilldownAcrossDates(allRows: DrilldownRow[][]): DrilldownRow[] {
+  const byParam = new Map<string, { event_count: number; invalid_count: number }>();
+  const sampleRow = new Map<string, DrilldownRow>();
+  for (const rows of allRows) {
+    for (const row of rows) {
+      const key = row.param_name;
+      const existing = byParam.get(key);
+      const ec = row.event_count || 0;
+      const ic = row.invalid_count || 0;
+      if (existing) {
+        existing.event_count += ec;
+        existing.invalid_count += ic;
+      } else {
+        byParam.set(key, { event_count: ec, invalid_count: ic });
+        sampleRow.set(key, row);
+      }
+    }
+  }
+  return Array.from(byParam.entries()).map(([param_name, { event_count, invalid_count }]) => ({
+    ...sampleRow.get(param_name)!,
+    param_name,
+    event_count,
+    invalid_count,
+  }));
+}
+
 function missingPercentFromRow(row: DrilldownRow): number {
   const total = row.event_count || 1;
   return Math.round(((row.invalid_count || 0) / total) * 1000) / 10;
 }
 
-/** Last N dates ending at endDate (YYYY-MM-DD), oldest first */
-function dateRange(endDate: string, days: number): string[] {
-  const end = new Date(endDate + "T12:00:00");
+/** All dates from fromStr to toStr inclusive (YYYY-MM-DD), oldest first */
+function datesInRange(fromStr: string, toStr: string): string[] {
+  const from = new Date(fromStr + "T12:00:00");
+  const to = new Date(toStr + "T12:00:00");
   const result: string[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(end);
-    d.setDate(d.getDate() - i);
-    result.push(d.toISOString().slice(0, 10));
+  const cur = new Date(from);
+  while (cur <= to) {
+    result.push(cur.toISOString().slice(0, 10));
+    cur.setDate(cur.getDate() + 1);
   }
   return result;
 }
 
+const defaultDateRange = (): DateRangeValue => {
+  const end = new Date().toISOString().slice(0, 10);
+  const start = (() => {
+    const d = new Date(end + "T12:00:00");
+    d.setDate(d.getDate() - 6);
+    return d.toISOString().slice(0, 10);
+  })();
+  return { from: start, to: end };
+};
+
 export function EventDetail() {
   const { eventName } = useParams<{ eventName: string }>();
   const location = useLocation();
-  const dateFromState = (location.state as { date?: string } | null)?.date;
+  const state = location.state as { date?: string; dateRange?: DateRangeValue } | null;
+  const [dateRange, setDateRange] = useState<DateRangeValue | null>(() => {
+    if (state?.dateRange) return state.dateRange;
+    if (state?.date) {
+      const end = new Date(state.date + "T12:00:00");
+      const start = new Date(end);
+      start.setDate(start.getDate() - 6);
+      return { from: start.toISOString().slice(0, 10), to: state.date };
+    }
+    return defaultDateRange();
+  });
   const [drilldown, setDrilldown] = useState<DrilldownRow[]>([]);
   const [drilldownByDate, setDrilldownByDate] = useState<Map<string, DrilldownRow[]>>(new Map());
-  const [date, setDate] = useState<string>(dateFromState ?? "");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [visibleTopOffenders, setVisibleTopOffenders] = useState<Set<string>>(new Set());
 
-  const loadData = async (d: string) => {
-    if (!eventName) return;
+  useEffect(() => {
+    if (!eventName || !dateRange) return;
+    let cancelled = false;
     setLoading(true);
     setError(null);
-    try {
-      const dates = dateRange(d, 7);
-      const allRows = await Promise.all(
-        dates.map((dt) => fetchDrilldown(dt, eventName))
-      );
-      const rows = allRows[allRows.length - 1];
-      setDrilldown(rows);
-      const byDate = new Map<string, DrilldownRow[]>();
-      dates.forEach((dt, i) => byDate.set(dt, allRows[i]));
-      setDrilldownByDate(byDate);
-      setVisibleTopOffenders((prev) => {
-        const top5 = [...rows]
-          .sort((a, b) => missingPercentFromRow(b) - missingPercentFromRow(a))
-          .slice(0, 5)
-          .map((r) => r.param_name);
-        return new Set(top5.length > 0 ? top5 : prev);
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!eventName) return;
-    let cancelled = false;
-
-    const run = async () => {
-      let d = date || dateFromState || "";
-      if (!d) {
-        const latest = await fetchSummaryLatest();
-        d = latest?.date ?? new Date().toISOString().slice(0, 10);
-      }
-      if (!cancelled && !date) setDate(d);
-      const dates = dateRange(d, 7);
-      const allRows = await Promise.all(
-        dates.map((dt) => fetchDrilldown(dt, eventName))
-      );
-      const rows = allRows[allRows.length - 1];
-      if (!cancelled) {
-        setDrilldown(rows);
+    const range = dateRange;
+    const dates = datesInRange(range.from, range.to);
+    Promise.all(dates.map((dt) => fetchDrilldown(dt, eventName)))
+      .then((allRows) => {
+        if (cancelled) return;
         const byDate = new Map<string, DrilldownRow[]>();
         dates.forEach((dt, i) => byDate.set(dt, allRows[i]));
         setDrilldownByDate(byDate);
-        const top5 = [...rows]
+        const aggregated = aggregateDrilldownAcrossDates(allRows);
+        setDrilldown(aggregated);
+        const top5 = [...aggregated]
           .sort((a, b) => missingPercentFromRow(b) - missingPercentFromRow(a))
           .slice(0, 5)
           .map((r) => r.param_name);
         setVisibleTopOffenders(new Set(top5));
-      }
-    };
-
-    setLoading(true);
-    setError(null);
-    run()
+      })
       .catch((err) => {
         if (!cancelled)
           setError(err instanceof Error ? err.message : "Failed to load data");
@@ -116,15 +125,13 @@ export function EventDetail() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-
     return () => {
       cancelled = true;
     };
-  }, [eventName, dateFromState]);
+  }, [eventName, dateRange]);
 
-  const handleDateChange = (newDate: string) => {
-    setDate(newDate);
-    loadData(newDate);
+  const handleDateRangeChange = (range: DateRangeValue | null) => {
+    setDateRange(range ?? defaultDateRange());
   };
 
   const parameters = drilldown.map((row) => ({
@@ -172,35 +179,6 @@ export function EventDetail() {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-slate-300 hover:text-white mb-6 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Back to Dashboard
-          </Link>
-          <div className="mb-8">
-            <div className="h-9 w-48 rounded bg-slate-700 animate-pulse mb-2" />
-            <div className="h-5 w-64 rounded bg-slate-700 animate-pulse" />
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
-            <div className="flex justify-between">
-              <div className="h-16 w-40 rounded bg-slate-700 animate-pulse" />
-              <div className="h-16 w-24 rounded bg-slate-700 animate-pulse" />
-            </div>
-          </div>
-          <div className="text-center py-12">
-            <p className="text-slate-400">Loading parameter data...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
@@ -227,39 +205,57 @@ export function EventDetail() {
                 {eventName?.replace(/_/g, " ")} Event
               </h1>
               <p className="mt-2 text-slate-300">
-                Parameter quality breakdown {date && `• ${date}`}
+                Parameter quality breakdown
+                {dateRange &&
+                  ` • ${dateRange.from} – ${dateRange.to}`}
               </p>
             </div>
             <label className="flex items-center gap-2 text-slate-300">
-              <span className="text-sm">Date:</span>
-              <DatePicker
-                value={date}
-                onChange={handleDateChange}
-                placeholder="Select date"
+              <span className="text-sm">Date range:</span>
+              <DateRangePicker
+                value={dateRange}
+                onChange={handleDateRangeChange}
+                placeholder="Select date range"
               />
             </label>
           </div>
         </div>
 
         {/* Summary Card */}
-        <div className="bg-gradient-to-r from-slate-800 to-slate-700 border border-slate-600 rounded-lg p-6 mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-400 mb-1">Average Parameter Quality</p>
-              <p className="text-4xl font-bold text-white">{avgQuality.toFixed(1)}%</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-slate-400 mb-1">Total Parameters</p>
-              <p className="text-4xl font-bold text-white">{parameters.length}</p>
+        {loading ? (
+          <div className="bg-gradient-to-r from-slate-800 to-slate-700 border border-slate-600 rounded-lg p-6 mb-8">
+            <div className="flex justify-between">
+              <div className="h-16 w-40 rounded bg-slate-600 animate-pulse" />
+              <div className="h-16 w-24 rounded bg-slate-600 animate-pulse" />
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-gradient-to-r from-slate-800 to-slate-700 border border-slate-600 rounded-lg p-6 mb-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-400 mb-1">Average Parameter Quality</p>
+                <p className="text-4xl font-bold text-white">{avgQuality.toFixed(1)}%</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-slate-400 mb-1">Total Parameters</p>
+                <p className="text-4xl font-bold text-white">{parameters.length}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Top Offenders - Line curves over time (like front page) */}
-        {topOffenderParams.length > 0 && (
+        {loading ? (
+          <div className="mb-8">
+            <div className="h-6 w-48 rounded bg-slate-700 animate-pulse mb-4" />
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 h-80 flex items-center justify-center">
+              <p className="text-slate-400">Loading chart...</p>
+            </div>
+          </div>
+        ) : topOffenderParams.length > 0 ? (
           <div className="mb-8">
             <h2 className="text-xl font-semibold text-white mb-4">
-              Top Offenders (Last 7 Days)
+              Top Offenders (Selected Range)
             </h2>
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
               <div className="flex flex-wrap gap-4 mb-4">
@@ -354,12 +350,18 @@ export function EventDetail() {
               </div>
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* Parameter Details Table */}
         <div>
           <h2 className="text-xl font-semibold text-white mb-4">Parameter Details</h2>
-          {drilldown.length > 0 ? (
+          {loading ? (
+            <div className="overflow-x-auto rounded-lg border border-slate-700">
+              <div className="h-64 flex items-center justify-center bg-slate-800/50">
+                <p className="text-slate-400">Loading parameters...</p>
+              </div>
+            </div>
+          ) : drilldown.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border border-slate-700">
               <table className="min-w-full divide-y divide-slate-700">
                 <thead>
@@ -407,8 +409,8 @@ export function EventDetail() {
           ) : (
             !error && (
               <p className="text-slate-400">
-                No parameter data available for this event on {date || "the selected date"}.
-                Try selecting a different date with data from the dashboard.
+                No parameter data available for this event in the selected date range.
+                Try selecting a different range from the dashboard.
               </p>
             )
           )}

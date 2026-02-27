@@ -3,9 +3,26 @@
 from datetime import date, timedelta
 from flask import Blueprint, jsonify, request
 
-from backend.bigquery_client import query_event_quality_range, query_summary_latest, query_summary_range
+from backend.bigquery_client import (
+    EVENTS,
+    query_event_quality_range,
+    query_summary_latest,
+    query_summary_range,
+)
 
 bp = Blueprint("summary", __name__, url_prefix="/api")
+
+
+def _latest_from_range_average(rows: list, date_to: str) -> dict | None:
+    """Build synthetic 'latest' row as average of daily scores across the date range."""
+    if not rows:
+        return None
+    synthetic = {"date": date_to}
+    for ev in EVENTS:
+        key = f"{ev}_overall_score"
+        scores = [r.get(key, 0) for r in rows]
+        synthetic[key] = round(sum(scores) / len(scores) * 10) / 10 if scores else 0
+    return synthetic
 
 
 @bp.route("/summary", methods=["GET"])
@@ -67,8 +84,22 @@ def dashboard():
 
     try:
         rows = query_event_quality_range(date_from, date_to)
-        latest = rows[-1] if rows else None
-        payload = {"latest": latest, "trend": rows}
+        latest = _latest_from_range_average(rows, date_to)
+
+        # Previous period: same length, immediately before current range
+        start_d = date.fromisoformat(date_from)
+        end_d = date.fromisoformat(date_to)
+        num_days = (end_d - start_d).days + 1
+        prev_end_d = start_d - timedelta(days=1)
+        prev_start_d = prev_end_d - timedelta(days=num_days - 1)
+        prev_from = prev_start_d.isoformat()
+        prev_to = prev_end_d.isoformat()
+        prev_rows = query_event_quality_range(prev_from, prev_to)
+        if not prev_rows:
+            prev_rows = query_summary_range(prev_from, prev_to)
+        previous = _latest_from_range_average(prev_rows, prev_to)
+
+        payload = {"latest": latest, "trend": rows, "previous": previous}
         response = jsonify(payload)
         response.headers["Cache-Control"] = "public, max-age=300"
         return response

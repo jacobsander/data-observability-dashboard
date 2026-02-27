@@ -1,6 +1,7 @@
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Link } from "react-router";
 import { motion } from "motion/react";
+import type { DateRangeValue } from "./DateRangePicker";
 
 interface EventScorecardProps {
   eventName: string;
@@ -8,9 +9,10 @@ interface EventScorecardProps {
   previousPercentage?: number;
   index?: number;
   latestDate?: string;
+  dateRange?: DateRangeValue | null;
 }
 
-export function EventScorecard({ eventName, percentage, previousPercentage, index = 0, latestDate }: EventScorecardProps) {
+export function EventScorecard({ eventName, percentage, previousPercentage, index = 0, latestDate, dateRange }: EventScorecardProps) {
   const getScoreColor = (percentage: number) => {
     if (percentage >= 90) return "text-green-600";
     if (percentage >= 70) return "text-emerald-600";
@@ -19,8 +21,7 @@ export function EventScorecard({ eventName, percentage, previousPercentage, inde
   };
 
   const getTrend = () => {
-    if (!previousPercentage) return null;
-    
+    if (previousPercentage == null) return { icon: null, color: "text-slate-400", value: "—" };
     const diff = percentage - previousPercentage;
     if (diff > 0) {
       return {
@@ -44,12 +45,18 @@ export function EventScorecard({ eventName, percentage, previousPercentage, inde
   };
 
   const trend = getTrend();
-  const TrendIcon = trend?.icon;
+  const TrendIcon = trend.icon;
 
   return (
     <Link
       to={`/event/${eventName}`}
-      state={latestDate ? { date: latestDate } : undefined}
+      state={
+        dateRange
+          ? { dateRange }
+          : latestDate
+            ? { date: latestDate }
+            : undefined
+      }
       className="block"
     >
       <motion.div
@@ -61,12 +68,10 @@ export function EventScorecard({ eventName, percentage, previousPercentage, inde
       >
         <div className="flex items-start justify-between mb-4">
           <h3 className="text-sm font-medium text-slate-300">{eventName}</h3>
-          {trend && TrendIcon && (
-            <div className={`flex items-center gap-1 ${trend.color}`}>
-              <TrendIcon className="w-4 h-4" />
-              <span className="text-xs font-medium">{trend.value}</span>
-            </div>
-          )}
+          <div className={`flex items-center gap-1 ${trend.color}`}>
+            {TrendIcon && <TrendIcon className="w-4 h-4" />}
+            <span className="text-xs font-medium">{trend.value}</span>
+          </div>
         </div>
         <div className={`text-3xl font-bold ${getScoreColor(percentage)}`}>
           {percentage}%
