@@ -121,6 +121,45 @@ def query_summary_latest() -> dict[str, Any] | None:
     return d
 
 
+def query_event_quality_range(date_from: str, date_to: str) -> list[dict[str, Any]]:
+    """Fetch average parameter quality per (date, event) from fct_ga4_validation.
+    Returns rows in SummaryRow format: { date, {event}_overall_score, ... }.
+    Matches drill-down 'Average Parameter Quality' = mean of % with parameter across params."""
+    client = get_client()
+    query = f"""
+    SELECT date, event_name,
+      AVG(100.0 * (event_count - invalid_count) / NULLIF(event_count, 0)) AS avg_param_quality
+    FROM `{TABLE_VALIDATION}`
+    WHERE date >= @date_from AND date <= @date_to
+    GROUP BY date, event_name
+    ORDER BY date, event_name
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("date_from", "DATE", date_from),
+            bigquery.ScalarQueryParameter("date_to", "DATE", date_to),
+        ]
+    )
+    result = client.query(query, job_config=job_config)
+    # Build date -> { event -> avg_param_quality }
+    by_date: dict[str, dict[str, float]] = {}
+    for row in result:
+        dt = str(row.date)
+        ev = str(row.event_name or "")
+        val = float(row.avg_param_quality or 0)
+        if dt not in by_date:
+            by_date[dt] = {}
+        by_date[dt][ev] = val
+    # Reshape into SummaryRow format
+    rows = []
+    for dt in sorted(by_date.keys()):
+        d: dict[str, Any] = {"date": dt}
+        for ev in EVENTS:
+            d[f"{ev}_overall_score"] = by_date[dt].get(ev, 0)
+        rows.append(d)
+    return rows
+
+
 def query_drilldown(date: str, event_name: str) -> list[dict[str, Any]]:
     """Fetch drill-down rows for one event from fct_ga4_validation."""
     _validate_drilldown_inputs(date, event_name)

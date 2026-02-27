@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
-from lib.bigquery_queries import query_summary_range
+from lib.bigquery_queries import query_event_quality_range
 
 
 def _parse_query(path: str) -> dict[str, str]:
@@ -26,7 +26,7 @@ class handler(BaseHTTPRequestHandler):
             date_from = start.isoformat()
             date_to = end.isoformat()
 
-            rows = query_summary_range(date_from, date_to)
+            rows = query_event_quality_range(date_from, date_to)
             latest = rows[-1] if rows else None
             payload = {"latest": latest, "trend": rows}
 

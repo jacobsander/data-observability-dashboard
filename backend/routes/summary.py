@@ -3,7 +3,7 @@
 from datetime import date, timedelta
 from flask import Blueprint, jsonify, request
 
-from backend.bigquery_client import query_summary_latest, query_summary_range
+from backend.bigquery_client import query_event_quality_range, query_summary_latest, query_summary_range
 
 bp = Blueprint("summary", __name__, url_prefix="/api")
 
@@ -49,7 +49,7 @@ def dashboard():
     date_to = end.isoformat()
 
     try:
-        rows = query_summary_range(date_from, date_to)
+        rows = query_event_quality_range(date_from, date_to)
         latest = rows[-1] if rows else None
         payload = {"latest": latest, "trend": rows}
         response = jsonify(payload)
