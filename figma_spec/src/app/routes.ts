@@ -11,4 +11,9 @@ export const router = createBrowserRouter([
     lazy: () =>
       import("./pages/EventDetail").then((m) => ({ Component: m.EventDetail })),
   },
+  {
+    path: "/event/:eventName/param/:paramName",
+    lazy: () =>
+      import("./pages/ParamDetail").then((m) => ({ Component: m.ParamDetail })),
+  },
 ]);

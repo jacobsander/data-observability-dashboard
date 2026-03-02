@@ -6,6 +6,7 @@ from flask_cors import CORS
 from backend.routes.summary import bp as summary_bp
 from backend.routes.drilldown import bp as drilldown_bp
 from backend.routes.issues import bp as issues_bp
+from backend.routes.param_detail import bp as param_detail_bp
 
 
 def create_app() -> Flask:
@@ -15,6 +16,7 @@ def create_app() -> Flask:
     app.register_blueprint(summary_bp)
     app.register_blueprint(drilldown_bp)
     app.register_blueprint(issues_bp)
+    app.register_blueprint(param_detail_bp)
 
     @app.route("/api/health")
     def health():

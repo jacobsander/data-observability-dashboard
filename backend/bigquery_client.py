@@ -14,6 +14,7 @@ DATASET = os.environ.get("BIGQUERY_DATASET", "obs_layer_poc_moomin")
 LOCATION = "EU"
 TABLE_SUMMARY = f"{PROJECT_ID}.{DATASET}.fct_ga4_validation_summary_daily"
 TABLE_VALIDATION = f"{PROJECT_ID}.{DATASET}.fct_ga4_validation"
+TABLE_INT_EVENT_PARAM_STATUS = f"{PROJECT_ID}.{DATASET}.int_moomin__event_param_status"
 
 EVENTS = [
     "session_start",
@@ -216,6 +217,51 @@ def query_top_missing_params(date: str, limit: int = 3) -> list[dict[str, Any]]:
             "event_count": int(row.event_count or 0),
             "invalid_count": int(row.invalid_count or 0),
             "pct_missing": round(float(row.pct_missing or 0), 1),
+        }
+        for row in result
+    ]
+
+
+def query_param_detail(event_name: str, param_name: str, limit: int = 20) -> list[dict[str, Any]]:
+    """Fetch most recent actual_value rows for one (event_name, param_name) from int_moomin__event_param_status."""
+    normalized_event = _normalize_event_name(event_name)
+    if normalized_event not in EVENTS:
+        raise ValueError(
+            f"Invalid event_name: '{event_name}'. Must be one of: {', '.join(EVENTS)}"
+        )
+    if not param_name or not isinstance(param_name, str):
+        raise ValueError("param_name is required and must be a non-empty string.")
+    param_name = param_name.strip()
+    if not param_name:
+        raise ValueError("param_name cannot be empty.")
+    # Allow typical param names: alphanumeric, underscore
+    if not re.match(r"^[a-zA-Z0-9_]+$", param_name):
+        raise ValueError("param_name must contain only letters, numbers, and underscores.")
+    limit = max(1, min(100, limit))
+    client = get_client()
+    query = f"""
+    SELECT date, event_timestamp, event_name, param_name, qa_status, actual_value
+    FROM `{TABLE_INT_EVENT_PARAM_STATUS}`
+    WHERE event_name = @event_name AND param_name = @param_name
+    ORDER BY date DESC, event_timestamp DESC
+    LIMIT @limit
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("event_name", "STRING", normalized_event),
+            bigquery.ScalarQueryParameter("param_name", "STRING", param_name),
+            bigquery.ScalarQueryParameter("limit", "INT64", limit),
+        ]
+    )
+    result = client.query(query, job_config=job_config)
+    return [
+        {
+            "date": str(row.date),
+            "event_timestamp": int(row.event_timestamp or 0),
+            "event_name": str(row.event_name or ""),
+            "param_name": str(row.param_name or ""),
+            "qa_status": str(row.qa_status or ""),
+            "actual_value": str(row.actual_value) if row.actual_value is not None else "",
         }
         for row in result
     ]

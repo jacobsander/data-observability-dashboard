@@ -98,3 +98,25 @@ export async function fetchDrilldown(
     `${API_BASE}/drilldown?date=${date}&event_name=${encodeURIComponent(eventName)}`
   );
 }
+
+export interface ParamDetailRow {
+  date: string;
+  event_timestamp: number;
+  event_name: string;
+  param_name: string;
+  qa_status: string;
+  actual_value: string;
+}
+
+export async function fetchParamDetail(
+  eventName: string,
+  paramName: string,
+  limit: number = 20
+): Promise<ParamDetailRow[]> {
+  const params = new URLSearchParams({
+    event_name: eventName,
+    param_name: paramName,
+    limit: String(limit),
+  });
+  return fetchJson<ParamDetailRow[]>(`${API_BASE}/param-detail?${params}`);
+}

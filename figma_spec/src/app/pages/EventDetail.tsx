@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { useParams, useLocation, Link } from "react-router";
+import { useParams, useLocation, useNavigate, Link } from "react-router";
 import {
   AreaChart,
   Area,
@@ -80,6 +80,7 @@ const defaultDateRange = (): DateRangeValue => {
 export function EventDetail() {
   const { eventName } = useParams<{ eventName: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const state = location.state as { date?: string; dateRange?: DateRangeValue } | null;
   const [dateRange, setDateRange] = useState<DateRangeValue | null>(() => {
     if (state?.dateRange) return state.dateRange;
@@ -191,6 +192,7 @@ export function EventDetail() {
         {/* Back Button */}
         <Link
           to="/"
+          state={dateRange ? { dateRange } : undefined}
           className="inline-flex items-center gap-2 text-slate-300 hover:text-white mb-6 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -386,8 +388,24 @@ export function EventDetail() {
                     const pct = qualityFromRow(row);
                     const pctColor =
                       pct >= 67 ? "text-green-400" : pct >= 34 ? "text-yellow-400" : "text-red-400";
+                    const goToParam = () =>
+                      navigate(`/event/${eventName}/param/${row.param_name}`, {
+                        state: dateRange ? { dateRange } : undefined,
+                      });
                     return (
-                      <tr key={row.param_name} className="hover:bg-slate-700/50 transition-colors">
+                      <tr
+                        key={row.param_name}
+                        role="button"
+                        tabIndex={0}
+                        onClick={goToParam}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            goToParam();
+                          }
+                        }}
+                        className="hover:bg-slate-700/50 transition-colors cursor-pointer"
+                      >
                         <td className="px-4 py-3 text-sm font-medium text-white capitalize">
                           {row.param_name.replace(/_/g, " ")}
                         </td>

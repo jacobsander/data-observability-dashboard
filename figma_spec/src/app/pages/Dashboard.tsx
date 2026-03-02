@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router";
 import {
   AreaChart,
   Area,
@@ -21,7 +22,15 @@ import {
   type TopMissingRow,
 } from "../api";
 
+const defaultDateRange = () => {
+  const defaultEnd = new Date().toISOString().slice(0, 10);
+  const d = new Date(defaultEnd + "T12:00:00");
+  d.setDate(d.getDate() - 6);
+  return { from: d.toISOString().slice(0, 10), to: defaultEnd };
+};
+
 export function Dashboard() {
+  const location = useLocation();
   const [latest, setLatest] = useState<SummaryRow | null>(null);
   const [previous, setPrevious] = useState<SummaryRow | null>(null);
   const [trendData, setTrendData] = useState<SummaryRow[]>([]);
@@ -29,14 +38,12 @@ export function Dashboard() {
   const [visibleEvents, setVisibleEvents] = useState<Set<string>>(new Set(EVENTS));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const defaultEnd = new Date().toISOString().slice(0, 10);
-  const defaultStart = (() => {
-    const d = new Date(defaultEnd + "T12:00:00");
-    d.setDate(d.getDate() - 6);
-    return d.toISOString().slice(0, 10);
-  })();
   const [dateRange, setDateRange] = useState<{ from: string; to: string } | null>(
-    () => ({ from: defaultStart, to: defaultEnd })
+    () => {
+      const state = location.state as { dateRange?: { from: string; to: string } } | null;
+      if (state?.dateRange) return state.dateRange;
+      return defaultDateRange();
+    }
   );
 
   useEffect(() => {
