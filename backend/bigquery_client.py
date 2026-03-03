@@ -222,8 +222,15 @@ def query_top_missing_params(date: str, limit: int = 3) -> list[dict[str, Any]]:
     ]
 
 
-def query_param_detail(event_name: str, param_name: str, limit: int = 20) -> list[dict[str, Any]]:
-    """Fetch most recent actual_value rows for one (event_name, param_name) from int_moomin__event_param_status."""
+def query_param_detail(
+    event_name: str,
+    param_name: str,
+    limit: int = 20,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch most recent actual_value rows for one (event_name, param_name) from int_moomin__event_param_status.
+    Optional date_from/date_to filter by date range (YYYY-MM-DD). If both omitted, returns latest rows across all dates."""
     normalized_event = _normalize_event_name(event_name)
     if normalized_event not in EVENTS:
         raise ValueError(
@@ -237,22 +244,37 @@ def query_param_detail(event_name: str, param_name: str, limit: int = 20) -> lis
     # Allow typical param names: alphanumeric, underscore
     if not re.match(r"^[a-zA-Z0-9_]+$", param_name):
         raise ValueError("param_name must contain only letters, numbers, and underscores.")
+    if date_from is not None or date_to is not None:
+        for d, label in [(date_from, "date_from"), (date_to, "date_to")]:
+            if d is not None and not re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+                raise ValueError(f"Invalid {label} format: use YYYY-MM-DD.")
+        if date_from is not None:
+            datetime.strptime(date_from, "%Y-%m-%d")
+        if date_to is not None:
+            datetime.strptime(date_to, "%Y-%m-%d")
     limit = max(1, min(100, limit))
     client = get_client()
+    where_parts = ["event_name = @event_name", "param_name = @param_name"]
+    params = [
+        bigquery.ScalarQueryParameter("event_name", "STRING", normalized_event),
+        bigquery.ScalarQueryParameter("param_name", "STRING", param_name),
+        bigquery.ScalarQueryParameter("limit", "INT64", limit),
+    ]
+    if date_from is not None:
+        where_parts.append("date >= @date_from")
+        params.append(bigquery.ScalarQueryParameter("date_from", "DATE", date_from))
+    if date_to is not None:
+        where_parts.append("date <= @date_to")
+        params.append(bigquery.ScalarQueryParameter("date_to", "DATE", date_to))
+    where_clause = " AND ".join(where_parts)
     query = f"""
     SELECT date, event_timestamp, event_name, param_name, qa_status, actual_value
     FROM `{TABLE_INT_EVENT_PARAM_STATUS}`
-    WHERE event_name = @event_name AND param_name = @param_name
+    WHERE {where_clause}
     ORDER BY date DESC, event_timestamp DESC
     LIMIT @limit
     """
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("event_name", "STRING", normalized_event),
-            bigquery.ScalarQueryParameter("param_name", "STRING", param_name),
-            bigquery.ScalarQueryParameter("limit", "INT64", limit),
-        ]
-    )
+    job_config = bigquery.QueryJobConfig(query_parameters=params)
     result = client.query(query, job_config=job_config)
     return [
         {

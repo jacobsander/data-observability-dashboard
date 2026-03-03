@@ -41,7 +41,11 @@ export function ParamDetail() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchParamDetail(eventName, paramName, 20)
+    const range =
+      dateRange?.from && dateRange?.to
+        ? { from: dateRange.from, to: dateRange.to }
+        : undefined;
+    fetchParamDetail(eventName, paramName, 20, range)
       .then((data) => {
         if (!cancelled) setRows(data);
       })
@@ -55,7 +59,7 @@ export function ParamDetail() {
     return () => {
       cancelled = true;
     };
-  }, [eventName, paramName]);
+  }, [eventName, paramName, dateRange?.from, dateRange?.to]);
 
   const displayParamName = paramName?.replace(/_/g, " ") ?? "";
   const displayEventName = eventName?.replace(/_/g, " ") ?? "";

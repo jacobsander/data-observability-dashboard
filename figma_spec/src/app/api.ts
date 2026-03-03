@@ -111,12 +111,15 @@ export interface ParamDetailRow {
 export async function fetchParamDetail(
   eventName: string,
   paramName: string,
-  limit: number = 20
+  limit: number = 20,
+  dateRange?: { from: string; to: string } | null
 ): Promise<ParamDetailRow[]> {
   const params = new URLSearchParams({
     event_name: eventName,
     param_name: paramName,
     limit: String(limit),
   });
+  if (dateRange?.from) params.set("from", dateRange.from);
+  if (dateRange?.to) params.set("to", dateRange.to);
   return fetchJson<ParamDetailRow[]>(`${API_BASE}/param-detail?${params}`);
 }
