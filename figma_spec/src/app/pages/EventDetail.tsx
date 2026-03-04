@@ -13,7 +13,11 @@ import {
 import { ArrowLeft } from "lucide-react";
 import { DateRangePicker } from "../components/DateRangePicker";
 import type { DateRangeValue } from "../components/DateRangePicker";
+import { Ga4PropertyPicker } from "../components/Ga4PropertyPicker";
+import type { Ga4PropertyValue } from "../components/Ga4PropertyPicker";
 import { fetchDrilldown } from "../api";
+
+const DEFAULT_GA4_PROPERTY: Ga4PropertyValue[] = ["moomin_prod", "moomin_test"];
 import type { DrilldownRow } from "../api";
 
 function qualityFromRow(row: DrilldownRow): number {
@@ -81,7 +85,7 @@ export function EventDetail() {
   const { eventName } = useParams<{ eventName: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const state = location.state as { date?: string; dateRange?: DateRangeValue } | null;
+  const state = location.state as { date?: string; dateRange?: DateRangeValue; ga4Property?: Ga4PropertyValue[] } | null;
   const [dateRange, setDateRange] = useState<DateRangeValue | null>(() => {
     if (state?.dateRange) return state.dateRange;
     if (state?.date) {
@@ -92,6 +96,9 @@ export function EventDetail() {
     }
     return defaultDateRange();
   });
+  const [ga4Property, setGa4Property] = useState<Ga4PropertyValue[]>(
+    () => state?.ga4Property ?? DEFAULT_GA4_PROPERTY
+  );
   const [drilldown, setDrilldown] = useState<DrilldownRow[]>([]);
   const [drilldownByDate, setDrilldownByDate] = useState<Map<string, DrilldownRow[]>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -105,7 +112,7 @@ export function EventDetail() {
     setError(null);
     const range = dateRange;
     const dates = datesInRange(range.from, range.to);
-    Promise.all(dates.map((dt) => fetchDrilldown(dt, eventName)))
+    Promise.all(dates.map((dt) => fetchDrilldown(dt, eventName, ga4Property)))
       .then((allRows) => {
         if (cancelled) return;
         const byDate = new Map<string, DrilldownRow[]>();
@@ -129,7 +136,7 @@ export function EventDetail() {
     return () => {
       cancelled = true;
     };
-  }, [eventName, dateRange]);
+  }, [eventName, dateRange, ga4Property]);
 
   const handleDateRangeChange = (range: DateRangeValue | null) => {
     setDateRange(range ?? defaultDateRange());
@@ -192,7 +199,7 @@ export function EventDetail() {
         {/* Back Button */}
         <Link
           to="/"
-          state={dateRange ? { dateRange } : undefined}
+          state={dateRange || ga4Property ? { dateRange, ga4Property } : undefined}
           className="inline-flex items-center gap-2 text-slate-300 hover:text-white mb-6 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -212,14 +219,17 @@ export function EventDetail() {
                   ` • ${dateRange.from} – ${dateRange.to}`}
               </p>
             </div>
-            <label className="flex items-center gap-2 text-slate-300">
-              <span className="text-sm">Date range:</span>
-              <DateRangePicker
-                value={dateRange}
-                onChange={handleDateRangeChange}
-                placeholder="Select date range"
-              />
-            </label>
+            <div className="flex flex-wrap items-center gap-3 text-slate-300">
+              <label className="flex items-center gap-2">
+                <span className="text-sm">Date range:</span>
+                <DateRangePicker
+                  value={dateRange}
+                  onChange={handleDateRangeChange}
+                  placeholder="Select date range"
+                />
+              </label>
+              <Ga4PropertyPicker value={ga4Property} onChange={setGa4Property} />
+            </div>
           </div>
         </div>
 
@@ -390,7 +400,7 @@ export function EventDetail() {
                       pct >= 67 ? "text-green-400" : pct >= 34 ? "text-yellow-400" : "text-red-400";
                     const goToParam = () =>
                       navigate(`/event/${eventName}/param/${row.param_name}`, {
-                        state: dateRange ? { dateRange } : undefined,
+                        state: dateRange || ga4Property ? { dateRange, ga4Property } : undefined,
                       });
                     return (
                       <tr

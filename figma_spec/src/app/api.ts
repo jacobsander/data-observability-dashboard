@@ -62,8 +62,9 @@ export async function fetchDashboard(options: {
   endDate?: string;
   from?: string;
   to?: string;
+  ga4Property?: string[];
 }): Promise<DashboardResponse> {
-  const { days = 7, endDate, from, to } = options;
+  const { days = 7, endDate, from, to, ga4Property } = options;
   const params = new URLSearchParams();
 
   if (from && to) {
@@ -72,6 +73,9 @@ export async function fetchDashboard(options: {
   } else {
     params.set("days", String(days));
     if (endDate) params.set("to", endDate);
+  }
+  if (ga4Property?.length) {
+    params.set("ga4_property", ga4Property.join(","));
   }
 
   return fetchJson<DashboardResponse>(`${API_BASE}/dashboard?${params}`);
@@ -92,11 +96,15 @@ export interface DrilldownRow {
 
 export async function fetchDrilldown(
   date: string,
-  eventName: string
+  eventName: string,
+  ga4Property?: string[]
 ): Promise<DrilldownRow[]> {
-  return fetchJson<DrilldownRow[]>(
-    `${API_BASE}/drilldown?date=${date}&event_name=${encodeURIComponent(eventName)}`
-  );
+  const params = new URLSearchParams({
+    date,
+    event_name: eventName,
+  });
+  if (ga4Property?.length) params.set("ga4_property", ga4Property.join(","));
+  return fetchJson<DrilldownRow[]>(`${API_BASE}/drilldown?${params}`);
 }
 
 export interface ParamDetailRow {
@@ -112,7 +120,8 @@ export async function fetchParamDetail(
   eventName: string,
   paramName: string,
   limit: number = 20,
-  dateRange?: { from: string; to: string } | null
+  dateRange?: { from: string; to: string } | null,
+  ga4Property?: string[]
 ): Promise<ParamDetailRow[]> {
   const params = new URLSearchParams({
     event_name: eventName,
@@ -121,5 +130,6 @@ export async function fetchParamDetail(
   });
   if (dateRange?.from) params.set("from", dateRange.from);
   if (dateRange?.to) params.set("to", dateRange.to);
+  if (ga4Property?.length) params.set("ga4_property", ga4Property.join(","));
   return fetchJson<ParamDetailRow[]>(`${API_BASE}/param-detail?${params}`);
 }

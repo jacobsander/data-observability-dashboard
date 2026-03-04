@@ -14,6 +14,8 @@ import { HealthScore } from "../components/HealthScore";
 import { EventScorecard } from "../components/EventScorecard";
 import { DashboardSkeleton } from "../components/DashboardSkeleton";
 import { DateRangePicker } from "../components/DateRangePicker";
+import { Ga4PropertyPicker } from "../components/Ga4PropertyPicker";
+import type { Ga4PropertyValue } from "../components/Ga4PropertyPicker";
 import {
   EVENTS,
   fetchDashboard,
@@ -21,6 +23,8 @@ import {
   type SummaryRow,
   type TopMissingRow,
 } from "../api";
+
+const DEFAULT_GA4_PROPERTY: Ga4PropertyValue[] = ["moomin_prod", "moomin_test"];
 
 const defaultDateRange = () => {
   const defaultEnd = new Date().toISOString().slice(0, 10);
@@ -40,11 +44,15 @@ export function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<{ from: string; to: string } | null>(
     () => {
-      const state = location.state as { dateRange?: { from: string; to: string } } | null;
+      const state = location.state as { dateRange?: { from: string; to: string }; ga4Property?: Ga4PropertyValue[] } | null;
       if (state?.dateRange) return state.dateRange;
       return defaultDateRange();
     }
   );
+  const [ga4Property, setGa4Property] = useState<Ga4PropertyValue[]>(() => {
+    const state = location.state as { ga4Property?: Ga4PropertyValue[] } | null;
+    return state?.ga4Property ?? DEFAULT_GA4_PROPERTY;
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -52,8 +60,8 @@ export function Dashboard() {
     setError(null);
 
     const options = dateRange
-      ? { from: dateRange.from, to: dateRange.to }
-      : { days: 7 };
+      ? { from: dateRange.from, to: dateRange.to, ga4Property }
+      : { days: 7, ga4Property };
     fetchDashboard(options)
       .then((res) => {
         if (!cancelled) {
@@ -75,7 +83,7 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [dateRange]);
+  }, [dateRange, ga4Property]);
 
   const overallHealthScore = latest
     ? Math.round(
@@ -145,14 +153,20 @@ export function Dashboard() {
               Performance & Unified Logging Surveillance Engine
             </p>
           </div>
-          <label className="flex items-center gap-2 text-slate-300">
-            <span className="text-sm">Date range:</span>
-            <DateRangePicker
-              value={dateRange}
-              onChange={setDateRange}
-              placeholder="Select date range"
+          <div className="flex flex-wrap items-center gap-3 text-slate-300">
+            <label className="flex items-center gap-2">
+              <span className="text-sm">Date range:</span>
+              <DateRangePicker
+                value={dateRange}
+                onChange={setDateRange}
+                placeholder="Select date range"
+              />
+            </label>
+            <Ga4PropertyPicker
+              value={ga4Property}
+              onChange={setGa4Property}
             />
-          </label>
+          </div>
         </div>
 
         {/* Overall Health Score */}
@@ -298,6 +312,7 @@ export function Dashboard() {
                   index={event.index}
                   latestDate={latest?.date}
                   dateRange={dateRange}
+                  ga4Property={ga4Property}
                 />
               ))}
             </div>

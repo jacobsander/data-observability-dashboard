@@ -3,8 +3,12 @@ import { useParams, useLocation, Link } from "react-router";
 import { ArrowLeft } from "lucide-react";
 import { DateRangePicker } from "../components/DateRangePicker";
 import type { DateRangeValue } from "../components/DateRangePicker";
+import { Ga4PropertyPicker } from "../components/Ga4PropertyPicker";
+import type { Ga4PropertyValue } from "../components/Ga4PropertyPicker";
 import { fetchParamDetail } from "../api";
 import type { ParamDetailRow } from "../api";
+
+const DEFAULT_GA4_PROPERTY: Ga4PropertyValue[] = ["moomin_prod", "moomin_test"];
 
 /** Format event_timestamp (microseconds) as time string */
 function formatEventTime(eventTimestamp: number): string {
@@ -27,11 +31,14 @@ const defaultDateRange = (): DateRangeValue => {
 export function ParamDetail() {
   const { eventName, paramName } = useParams<{ eventName: string; paramName: string }>();
   const location = useLocation();
-  const state = location.state as { dateRange?: DateRangeValue } | null;
+  const state = location.state as { dateRange?: DateRangeValue; ga4Property?: Ga4PropertyValue[] } | null;
   const [dateRange, setDateRange] = useState<DateRangeValue | null>(() => {
     if (state?.dateRange) return state.dateRange;
     return defaultDateRange();
   });
+  const [ga4Property, setGa4Property] = useState<Ga4PropertyValue[]>(
+    () => state?.ga4Property ?? DEFAULT_GA4_PROPERTY
+  );
   const [rows, setRows] = useState<ParamDetailRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +52,7 @@ export function ParamDetail() {
       dateRange?.from && dateRange?.to
         ? { from: dateRange.from, to: dateRange.to }
         : undefined;
-    fetchParamDetail(eventName, paramName, 20, range)
+    fetchParamDetail(eventName, paramName, 20, range, ga4Property)
       .then((data) => {
         if (!cancelled) setRows(data);
       })
@@ -59,7 +66,7 @@ export function ParamDetail() {
     return () => {
       cancelled = true;
     };
-  }, [eventName, paramName, dateRange?.from, dateRange?.to]);
+  }, [eventName, paramName, dateRange?.from, dateRange?.to, ga4Property]);
 
   const displayParamName = paramName?.replace(/_/g, " ") ?? "";
   const displayEventName = eventName?.replace(/_/g, " ") ?? "";
@@ -75,7 +82,7 @@ export function ParamDetail() {
 
         <Link
           to={eventName ? `/event/${eventName}` : "/"}
-          state={dateRange ? { dateRange } : undefined}
+          state={dateRange || ga4Property ? { dateRange, ga4Property } : undefined}
           className="inline-flex items-center gap-2 text-slate-300 hover:text-white mb-6 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -94,14 +101,17 @@ export function ParamDetail() {
                 {dateRange && ` • ${dateRange.from} – ${dateRange.to}`}
               </p>
             </div>
-            <label className="flex items-center gap-2 text-slate-300">
-              <span className="text-sm">Date range:</span>
-              <DateRangePicker
-                value={dateRange}
-                onChange={(range) => setDateRange(range ?? defaultDateRange())}
-                placeholder="Select date range"
-              />
-            </label>
+            <div className="flex flex-wrap items-center gap-3 text-slate-300">
+              <label className="flex items-center gap-2">
+                <span className="text-sm">Date range:</span>
+                <DateRangePicker
+                  value={dateRange}
+                  onChange={(range) => setDateRange(range ?? defaultDateRange())}
+                  placeholder="Select date range"
+                />
+              </label>
+              <Ga4PropertyPicker value={ga4Property} onChange={setGa4Property} />
+            </div>
           </div>
         </div>
 

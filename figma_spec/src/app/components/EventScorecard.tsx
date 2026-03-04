@@ -2,6 +2,7 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Link } from "react-router";
 import { motion } from "motion/react";
 import type { DateRangeValue } from "./DateRangePicker";
+import type { Ga4PropertyValue } from "./Ga4PropertyPicker";
 
 interface EventScorecardProps {
   eventName: string;
@@ -10,9 +11,10 @@ interface EventScorecardProps {
   index?: number;
   latestDate?: string;
   dateRange?: DateRangeValue | null;
+  ga4Property?: Ga4PropertyValue[];
 }
 
-export function EventScorecard({ eventName, percentage, previousPercentage, index = 0, latestDate, dateRange }: EventScorecardProps) {
+export function EventScorecard({ eventName, percentage, previousPercentage, index = 0, latestDate, dateRange, ga4Property }: EventScorecardProps) {
   const getScoreColor = (percentage: number) => {
     if (percentage >= 67) return "text-green-600";
     if (percentage >= 34) return "text-yellow-600";
@@ -50,8 +52,8 @@ export function EventScorecard({ eventName, percentage, previousPercentage, inde
     <Link
       to={`/event/${eventName}`}
       state={
-        dateRange
-          ? { dateRange }
+        dateRange || ga4Property
+          ? { dateRange, ga4Property }
           : latestDate
             ? { date: latestDate }
             : undefined
