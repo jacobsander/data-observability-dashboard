@@ -16,9 +16,32 @@ import type { DateRangeValue } from "../components/DateRangePicker";
 import { Ga4PropertyPicker } from "../components/Ga4PropertyPicker";
 import type { Ga4PropertyValue } from "../components/Ga4PropertyPicker";
 import { fetchDrilldown } from "../api";
+import { EVENTS_AND_PARAMS } from "../../config/eventsAndParams";
 
 const DEFAULT_GA4_PROPERTY: Ga4PropertyValue[] = ["moomin_prod", "moomin_test"];
 import type { DrilldownRow } from "../api";
+
+/** Merge in expected params from config that are not in the API response (show as 0 / 0 / 0%). */
+function mergeExpectedParams(
+  drilldown: DrilldownRow[],
+  eventName: string | undefined
+): DrilldownRow[] {
+  if (!eventName) return drilldown;
+  const expected = EVENTS_AND_PARAMS[eventName];
+  if (!expected?.length) return drilldown;
+  const existing = new Set(drilldown.map((r) => r.param_name));
+  const placeholders: DrilldownRow[] = expected
+    .filter((p) => !existing.has(p))
+    .map((param_name) => ({
+      date: "",
+      event_name: eventName,
+      param_name,
+      qa_status: "",
+      event_count: 0,
+      invalid_count: 0,
+    }));
+  return [...drilldown, ...placeholders];
+}
 
 function qualityFromRow(row: DrilldownRow): number {
   const total = row.event_count || 1;
@@ -141,6 +164,12 @@ export function EventDetail() {
   const handleDateRangeChange = (range: DateRangeValue | null) => {
     setDateRange(range ?? defaultDateRange());
   };
+
+  /** Drilldown plus expected params from config not yet in the API (for table display). */
+  const displayDrilldown = useMemo(
+    () => mergeExpectedParams(drilldown, eventName ?? undefined),
+    [drilldown, eventName]
+  );
 
   const parameters = drilldown.map((row) => ({
     name: row.param_name,
@@ -373,7 +402,7 @@ export function EventDetail() {
                 <p className="text-slate-400">Loading parameters...</p>
               </div>
             </div>
-          ) : drilldown.length > 0 ? (
+          ) : displayDrilldown.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border border-slate-700">
               <table className="min-w-full divide-y divide-slate-700">
                 <thead>
@@ -393,7 +422,7 @@ export function EventDetail() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700 bg-slate-800/50">
-                  {drilldown.map((row) => {
+                  {displayDrilldown.map((row) => {
                     const validCount = (row.event_count || 0) - (row.invalid_count || 0);
                     const pct = qualityFromRow(row);
                     const pctColor =
