@@ -12,9 +12,9 @@ from google.oauth2 import service_account
 
 PROJECT_ID = os.environ.get("BIGQUERY_PROJECT", "mimetic-perigee-290610")
 DATASET = os.environ.get("BIGQUERY_DATASET", "obs_layer_poc_moomin")
-LOCATION = "EU"
-TABLE_SUMMARY = f"{PROJECT_ID}.{DATASET}.fct_ga4_validation_summary_daily"
+LOCATION = os.environ.get("BIGQUERY_LOCATION", "EU")
 TABLE_VALIDATION = f"{PROJECT_ID}.{DATASET}.fct_ga4_validation"
+TABLE_SESSIONS_PURCHASES_DAILY = f"{PROJECT_ID}.{DATASET}.fct_moomin_sessions_purchases_daily"
 
 EVENTS = [
     "session_start",
@@ -68,51 +68,6 @@ def _get_client() -> bigquery.Client:
         location=LOCATION,
         credentials=credentials,
     )
-
-
-def query_summary_range(date_from: str, date_to: str) -> list[dict[str, Any]]:
-    client = _get_client()
-    query = f"""
-    SELECT date,
-           session_start_overall_score, page_view_overall_score, view_item_overall_score,
-           add_to_cart_overall_score, begin_checkout_overall_score, purchase_overall_score
-    FROM `{TABLE_SUMMARY}`
-    WHERE date >= @date_from AND date <= @date_to
-    ORDER BY date
-    """
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("date_from", "DATE", date_from),
-            bigquery.ScalarQueryParameter("date_to", "DATE", date_to),
-        ]
-    )
-    result = client.query(query, job_config=job_config)
-    rows = []
-    for row in result:
-        d = {"date": str(row.date)}
-        for ev in EVENTS:
-            d[f"{ev}_overall_score"] = float(row.get(f"{ev}_overall_score") or 0)
-        rows.append(d)
-    return rows
-
-
-def query_summary_latest() -> dict[str, Any] | None:
-    client = _get_client()
-    query = f"""
-    SELECT *
-    FROM `{TABLE_SUMMARY}`
-    ORDER BY date DESC
-    LIMIT 1
-    """
-    result = client.query(query)
-    rows = list(result)
-    if not rows:
-        return None
-    row = rows[0]
-    d = {"date": str(row.date)}
-    for ev in EVENTS:
-        d[f"{ev}_overall_score"] = float(row.get(f"{ev}_overall_score") or 0)
-    return d
 
 
 def query_event_quality_range(date_from: str, date_to: str) -> list[dict[str, Any]]:
@@ -234,6 +189,35 @@ def query_issues(date: str) -> list[dict[str, Any]]:
             "qa_status": row.qa_status,
             "event_count": int(row.event_count or 0),
             "invalid_count": int(row.invalid_count or 0),
+        }
+        for row in result
+    ]
+
+
+def query_sessions_purchases_daily(
+    date_from: str, date_to: str
+) -> list[dict[str, Any]]:
+    """Fetch daily session_count and purchase_count per ga4_property from fct_moomin_sessions_purchases_daily."""
+    client = _get_client()
+    query = f"""
+    SELECT date, ga4_property, session_count, purchase_count
+    FROM `{TABLE_SESSIONS_PURCHASES_DAILY}`
+    WHERE date >= @date_from AND date <= @date_to
+    ORDER BY date, ga4_property
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("date_from", "DATE", date_from),
+            bigquery.ScalarQueryParameter("date_to", "DATE", date_to),
+        ]
+    )
+    result = client.query(query, job_config=job_config)
+    return [
+        {
+            "date": str(row.date),
+            "ga4_property": str(row.ga4_property or ""),
+            "session_count": int(row.session_count or 0),
+            "purchase_count": int(row.purchase_count or 0),
         }
         for row in result
     ]

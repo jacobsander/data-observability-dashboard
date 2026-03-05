@@ -5,9 +5,9 @@ from flask import Blueprint, jsonify, request
 
 from backend.bigquery_client import (
     EVENTS,
+    _parse_ga4_properties,
     query_event_quality_range,
-    query_summary_latest,
-    query_summary_range,
+    query_sessions_purchases_daily,
     query_top_missing_params,
 )
 
@@ -24,28 +24,6 @@ def _latest_from_range_average(rows: list, date_to: str) -> dict | None:
         scores = [r.get(key, 0) for r in rows]
         synthetic[key] = round(sum(scores) / len(scores) * 10) / 10 if scores else 0
     return synthetic
-
-
-@bp.route("/summary", methods=["GET"])
-def summary():
-    """GET /api/summary?from=YYYY-MM-DD&to=YYYY-MM-DD - time series for overview."""
-    date_from = request.args.get("from")
-    date_to = request.args.get("to")
-
-    if not date_from or not date_to:
-        # Default: last 7 days
-        end = date.today()
-        start = end - timedelta(days=6)
-        date_from = start.isoformat()
-        date_to = end.isoformat()
-
-    try:
-        rows = query_summary_range(date_from, date_to)
-        return jsonify(rows)
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-    except Exception as e:
-        return jsonify({"error": f"BigQuery error: {str(e)}"}), 500
 
 
 @bp.route("/dashboard", methods=["GET"])
@@ -83,8 +61,10 @@ def dashboard():
         date_from = start.isoformat()
         date_to = end.isoformat()
 
+    ga4_properties = _parse_ga4_properties(request.args.get("ga4_property"))
+
     try:
-        rows = query_event_quality_range(date_from, date_to)
+        rows = query_event_quality_range(date_from, date_to, ga4_properties)
         latest = _latest_from_range_average(rows, date_to)
 
         # Previous period: same length, immediately before current range
@@ -95,13 +75,20 @@ def dashboard():
         prev_start_d = prev_end_d - timedelta(days=num_days - 1)
         prev_from = prev_start_d.isoformat()
         prev_to = prev_end_d.isoformat()
-        prev_rows = query_event_quality_range(prev_from, prev_to)
-        if not prev_rows:
-            prev_rows = query_summary_range(prev_from, prev_to)
+        prev_rows = query_event_quality_range(prev_from, prev_to, ga4_properties)
         previous = _latest_from_range_average(prev_rows, prev_to)
 
-        top_missing = query_top_missing_params(date_to, 3)
-        payload = {"latest": latest, "trend": rows, "previous": previous, "topMissing": top_missing}
+        top_missing = query_top_missing_params(date_to, 3, ga4_properties)
+        sessions_purchases = query_sessions_purchases_daily(
+            date_from, date_to, ga4_properties
+        )
+        payload = {
+            "latest": latest,
+            "trend": rows,
+            "previous": previous,
+            "topMissing": top_missing,
+            "clientServerDiscrepancy": sessions_purchases,
+        }
         response = jsonify(payload)
         response.headers["Cache-Control"] = "public, max-age=300"
         return response
@@ -111,15 +98,3 @@ def dashboard():
         return jsonify({"error": f"BigQuery error: {str(e)}"}), 500
 
 
-@bp.route("/summary/latest", methods=["GET"])
-def summary_latest():
-    """GET /api/summary/latest - single row, latest date."""
-    try:
-        row = query_summary_latest()
-        if row is None:
-            return jsonify({"error": "No data found"}), 404
-        return jsonify(row)
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-    except Exception as e:
-        return jsonify({"error": f"BigQuery error: {str(e)}"}), 500
