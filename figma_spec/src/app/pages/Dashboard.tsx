@@ -24,7 +24,7 @@ import {
   type TopMissingRow,
 } from "../api";
 
-const DEFAULT_GA4_PROPERTY: Ga4PropertyValue[] = ["moomin_prod", "moomin_test"];
+const DEFAULT_GA4_PROPERTY: Ga4PropertyValue[] = ["moomin_client", "moomin_server"];
 
 const defaultDateRange = () => {
   const defaultEnd = new Date().toISOString().slice(0, 10);

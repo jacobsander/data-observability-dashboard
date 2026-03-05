@@ -18,7 +18,7 @@ import type { Ga4PropertyValue } from "../components/Ga4PropertyPicker";
 import { fetchDrilldown } from "../api";
 import { EVENTS_AND_PARAMS } from "../../config/eventsAndParams";
 
-const DEFAULT_GA4_PROPERTY: Ga4PropertyValue[] = ["moomin_prod", "moomin_test"];
+const DEFAULT_GA4_PROPERTY: Ga4PropertyValue[] = ["moomin_client", "moomin_server"];
 import type { DrilldownRow } from "../api";
 
 /** Merge in expected params from config that are not in the API response (show as 0 / 0 / 0%). */

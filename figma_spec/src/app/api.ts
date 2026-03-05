@@ -37,10 +37,6 @@ export function qualityFromSummary(row: SummaryRow, event: string): number {
   return Math.round(score * 10) / 10;
 }
 
-export async function fetchSummary(from: string, to: string): Promise<SummaryRow[]> {
-  return fetchJson<SummaryRow[]>(`${API_BASE}/summary?from=${from}&to=${to}`);
-}
-
 export interface TopMissingRow {
   date: string;
   event_name: string;
@@ -79,10 +75,6 @@ export async function fetchDashboard(options: {
   }
 
   return fetchJson<DashboardResponse>(`${API_BASE}/dashboard?${params}`);
-}
-
-export async function fetchSummaryLatest(): Promise<SummaryRow | null> {
-  return fetchJson<SummaryRow | null>(`${API_BASE}/summary/latest`);
 }
 
 export interface DrilldownRow {

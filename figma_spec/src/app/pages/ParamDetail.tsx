@@ -8,7 +8,7 @@ import type { Ga4PropertyValue } from "../components/Ga4PropertyPicker";
 import { fetchParamDetail } from "../api";
 import type { ParamDetailRow } from "../api";
 
-const DEFAULT_GA4_PROPERTY: Ga4PropertyValue[] = ["moomin_prod", "moomin_test"];
+const DEFAULT_GA4_PROPERTY: Ga4PropertyValue[] = ["moomin_client", "moomin_server"];
 
 /** Format event_timestamp (microseconds) as time string */
 function formatEventTime(eventTimestamp: number): string {

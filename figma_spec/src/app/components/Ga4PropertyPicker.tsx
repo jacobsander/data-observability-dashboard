@@ -5,13 +5,13 @@ import { Checkbox } from "./ui/checkbox";
 import { cn } from "./ui/utils";
 
 export const GA4_PROPERTY_OPTIONS = [
-  { value: "moomin_prod", label: "Moomin prod" },
-  { value: "moomin_test", label: "Moomin test" },
+  { value: "moomin_client", label: "Moomin" },
+  { value: "moomin_server", label: "Moomin S2S" },
 ] as const;
 
 export type Ga4PropertyValue = (typeof GA4_PROPERTY_OPTIONS)[number]["value"];
 
-/** Multi-select for GA4 property filter (moomin_prod, moomin_test). */
+/** Multi-select for GA4 property filter (moomin_client, moomin_server). */
 export function Ga4PropertyPicker({
   value,
   onChange,
