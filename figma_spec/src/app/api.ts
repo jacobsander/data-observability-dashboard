@@ -46,11 +46,19 @@ export interface TopMissingRow {
   pct_missing: number;
 }
 
+export interface SessionsPurchasesRow {
+  date: string;
+  ga4_property: string;
+  session_count: number;
+  purchase_count: number;
+}
+
 export interface DashboardResponse {
   latest: SummaryRow | null;
   trend: SummaryRow[];
   previous: SummaryRow | null;
   topMissing?: TopMissingRow[];
+  clientServerDiscrepancy?: SessionsPurchasesRow[];
 }
 
 export async function fetchDashboard(options: {

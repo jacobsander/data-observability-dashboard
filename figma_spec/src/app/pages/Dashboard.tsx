@@ -1,14 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router";
 import {
   AreaChart,
   Area,
-  XAxis,
-  YAxis,
   CartesianGrid,
-  Tooltip,
   Legend,
   ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 import { HealthScore } from "../components/HealthScore";
 import { EventScorecard } from "../components/EventScorecard";
@@ -20,9 +20,12 @@ import {
   EVENTS,
   fetchDashboard,
   qualityFromSummary,
+  type SessionsPurchasesRow,
   type SummaryRow,
   type TopMissingRow,
 } from "../api";
+
+const numberFormatter = new Intl.NumberFormat("en-US");
 
 const DEFAULT_GA4_PROPERTY: Ga4PropertyValue[] = ["moomin_client", "moomin_server"];
 
@@ -39,6 +42,9 @@ export function Dashboard() {
   const [previous, setPrevious] = useState<SummaryRow | null>(null);
   const [trendData, setTrendData] = useState<SummaryRow[]>([]);
   const [topMissing, setTopMissing] = useState<TopMissingRow[] | undefined>(undefined);
+  const [clientServerDiscrepancy, setClientServerDiscrepancy] = useState<
+    SessionsPurchasesRow[]
+  >([]);
   const [visibleEvents, setVisibleEvents] = useState<Set<string>>(new Set(EVENTS));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +75,7 @@ export function Dashboard() {
           setTrendData(res.trend);
           setPrevious(res.previous ?? null);
           setTopMissing(res.topMissing);
+          setClientServerDiscrepancy(res.clientServerDiscrepancy ?? []);
         }
       })
       .catch((err) => {
@@ -122,6 +129,60 @@ export function Dashboard() {
     return point;
   });
 
+  const clientServerSummary = useMemo(() => {
+    if (!clientServerDiscrepancy.length) return null;
+
+    const totals: Record<
+      string,
+      {
+        sessions: number;
+        purchases: number;
+      }
+    > = {};
+
+    for (const row of clientServerDiscrepancy) {
+      if (!totals[row.ga4_property]) {
+        totals[row.ga4_property] = { sessions: 0, purchases: 0 };
+      }
+      totals[row.ga4_property].sessions += row.session_count;
+      totals[row.ga4_property].purchases += row.purchase_count;
+    }
+
+    const properties = Object.keys(totals);
+    if (properties.length < 2) return null;
+
+    const preferredOrder = ["moomin_client", "moomin_server"].filter((p) =>
+      properties.includes(p)
+    );
+    const [clientProp, serverProp] =
+      preferredOrder.length === 2 ? preferredOrder : [properties[0], properties[1]];
+
+    const client = totals[clientProp];
+    const server = totals[serverProp];
+
+    const sessionsRatio =
+      server.sessions > 0 ? client.sessions / server.sessions : null;
+    const purchasesRatio =
+      server.purchases > 0 ? client.purchases / server.purchases : null;
+
+    return {
+      clientProp,
+      serverProp,
+      sessions: {
+        client: client.sessions,
+        server: server.sessions,
+        ratio: sessionsRatio,
+        diff: client.sessions - server.sessions,
+      },
+      purchases: {
+        client: client.purchases,
+        server: server.purchases,
+        ratio: purchasesRatio,
+        diff: client.purchases - server.purchases,
+      },
+    };
+  }, [clientServerDiscrepancy]);
+
   const toggleEvent = (event: string) => {
     setVisibleEvents((prev) => {
       const next = new Set(prev);
@@ -132,6 +193,13 @@ export function Dashboard() {
       }
       return next;
     });
+  };
+
+  const discrepancyColor = (ratio: number) => {
+    const absPct = Math.abs((ratio - 1) * 100);
+    if (absPct <= 10) return "text-green-500";
+    if (absPct <= 20) return "text-yellow-500";
+    return "text-red-500";
   };
 
   return (
@@ -179,6 +247,95 @@ export function Dashboard() {
               previousScore={previousOverallHealthScore}
               topMissing={topMissing}
             />
+          )}
+        </div>
+
+        {/* Client/Server Discrepancy - Sessions & Purchases */}
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-white mb-4">
+            Client/Server Discrepancy
+          </h2>
+          {loading ? (
+            <DashboardSkeleton.Scorecards />
+          ) : clientServerSummary ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 shadow-sm">
+                <h3 className="text-sm font-medium text-slate-300 mb-2">
+                  Sessions
+                </h3>
+                {clientServerSummary.sessions.ratio != null ? (
+                  <div
+                    className={`text-3xl font-bold tabular-nums mb-4 ${discrepancyColor(
+                      clientServerSummary.sessions.ratio
+                    )}`}
+                  >
+                    {Math.abs(
+                      (clientServerSummary.sessions.ratio - 1) * 100
+                    ).toFixed(1)}
+                    %
+                  </div>
+                ) : null}
+                <dl className="space-y-2 text-sm text-slate-300">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <dt className="text-slate-400 shrink-0">Client</dt>
+                    <dd className="tabular-nums font-medium text-white">
+                      {numberFormatter.format(
+                        clientServerSummary.sessions.client
+                      )}
+                    </dd>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-4">
+                    <dt className="text-slate-400 shrink-0">Server</dt>
+                    <dd className="tabular-nums font-medium text-white">
+                      {numberFormatter.format(
+                        clientServerSummary.sessions.server
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 shadow-sm">
+                <h3 className="text-sm font-medium text-slate-300 mb-2">
+                  Purchases
+                </h3>
+                {clientServerSummary.purchases.ratio != null ? (
+                  <div
+                    className={`text-3xl font-bold tabular-nums mb-4 ${discrepancyColor(
+                      clientServerSummary.purchases.ratio
+                    )}`}
+                  >
+                    {Math.abs(
+                      (clientServerSummary.purchases.ratio - 1) * 100
+                    ).toFixed(1)}
+                    %
+                  </div>
+                ) : null}
+                <dl className="space-y-2 text-sm text-slate-300">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <dt className="text-slate-400 shrink-0">Client</dt>
+                    <dd className="tabular-nums font-medium text-white">
+                      {numberFormatter.format(
+                        clientServerSummary.purchases.client
+                      )}
+                    </dd>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-4">
+                    <dt className="text-slate-400 shrink-0">Server</dt>
+                    <dd className="tabular-nums font-medium text-white">
+                      {numberFormatter.format(
+                        clientServerSummary.purchases.server
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <p className="text-slate-400 py-8">
+                No session/purchase discrepancy data for the selected range.
+              </p>
+            </div>
           )}
         </div>
 
