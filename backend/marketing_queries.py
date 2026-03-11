@@ -12,40 +12,39 @@ from backend.bigquery_client import DATASET, PROJECT_ID, get_client
 TABLE_MARKETING_AUDIT = f"{PROJECT_ID}.{DATASET}.stg_marketing_audit__unpacked"
 
 # Primary date: ingested_date (DATE) so UI date filters align with ingestion.
-# Fallback: derive date from event_time (Unix seconds) or conversion_date_time (string YYYY-MM-DD...).
+# Fallback: derive date from event_time (Unix seconds) or ingested_at (timestamp/string).
 EVENT_DATE_EXPR = """COALESCE(
   ingested_date,
   DATE(TIMESTAMP_SECONDS(SAFE_CAST(event_time AS INT64))),
-  SAFE.PARSE_DATE('%Y-%m-%d', SUBSTR(COALESCE(conversion_date_time, ''), 1, 10))
+  SAFE.PARSE_DATE('%Y-%m-%d', SUBSTR(COALESCE(CAST(ingested_at AS STRING), ''), 1, 10))
 )"""
 
 # Normalize platform for filtering (BQ may have 'Google Ads', 'Meta CAPI', 'google-ads', etc.)
 PLATFORM_NORMALIZED = "LOWER(TRIM(COALESCE(platform, '')))"
 # Accepted normalized values per platform (after LOWER(TRIM(platform)))
-# BQ may store "google" for Google Ads rows.
+# BQ may store "google" for Google Ads, "meta" for Meta CAPI.
 PLATFORM_VARIANTS = {
-    "meta-capi": ("meta-capi", "meta_capi", "meta capi"),
+    "meta-capi": ("meta-capi", "meta_capi", "meta capi", "meta"),
     "google-ads": ("google-ads", "google_ads", "google ads", "google"),
 }
 
 MARKETING_PLATFORMS = ["meta-capi", "google-ads"]
 
-# (bq_column, param_key, category, description). BQ column presence = non-null and non-empty for strings.
+# (bq_column, param_key, category, description). Synced from plan tables (Meta/Google Ads); BQ columns point to stg_marketing_audit__unpacked.
+# Rows with NA BQ column are omitted (no column to query). FLOAT columns: see *_FLOAT_COLUMNS.
 META_CAPI_PARAMS = [
     ("event_id", "event_id", "critical", "UUID/ULID for Pixel/CAPI deduplication"),
-    ("event_name", "event_name", "critical", "Must match Meta's standard naming"),
-    ("event_time", "event_time", "critical", "Unix timestamp, loses power after 1 hour"),
+    ("event_name_internal", "event_name", "critical", "Must match Meta's standard naming"),
+    ("ingested_at", "event_time", "critical", "Unix timestamp, loses power after 1 hour"),
     ("action_source", "action_source", "critical", "Where event occurred (website/app/store)"),
     ("email", "user_data.em", "warning", "Hashed Email, highest-priority matching key"),
     ("phone", "user_data.ph", "warning", "Hashed Phone, high-priority identifier"),
     ("fbc", "user_data.fbc", "warning", "Click ID from fbclid, Meta ad clicks only"),
     ("fbp", "user_data.fbp", "warning", "Browser ID, unique browser identifier"),
-    ("client_ip_address", "user_data.client_ip_address", "warning", "User differentiation in server-to-server"),
-    ("client_user_agent", "user_data.client_user_agent", "warning", "User differentiation in server-to-server"),
-    ("custom_data_value", "custom_data.value", "optional", "Required for Purchase events ROAS calculation"),
-    ("custom_data_currency", "custom_data.currency", "optional", "Required for Purchase events ROAS"),
-    ("custom_data_content_ids", "custom_data.content_ids", "optional", "Required for Dynamic Product Ads"),
-    ("custom_data_content_type", "custom_data.content_type", "optional", "Required for Dynamic Product Ads"),
+    ("conversion_value", "custom_data.value", "warning", "Required for Purchase events ROAS calculation"),
+    ("currency_code", "custom_data.currency", "warning", "Required for Purchase events ROAS"),
+    ("custom_data_content_ids", "custom_data.content_ids", "warning", "Required for Dynamic Product Ads"),
+    ("custom_data_content_type", "custom_data.content_type", "warning", "Required for Dynamic Product Ads"),
     ("first_name", "user_data.fn", "optional", "First name, optional matching"),
     ("last_name", "user_data.ln", "optional", "Last name, optional matching"),
     ("city", "user_data.ct", "optional", "City, optional matching"),
@@ -54,28 +53,95 @@ META_CAPI_PARAMS = [
     ("country", "user_data.country", "optional", "Country, optional matching"),
 ]
 
-# FLOAT columns: presence = IS NOT NULL
-META_CAPI_FLOAT_COLUMNS = {"custom_data_value"}
+META_CAPI_FLOAT_COLUMNS = {"conversion_value"}
 
 GOOGLE_ADS_PARAMS = [
-    ("conversion_action", "conversion_action", "critical", "Conversion action ID"),
+    ("conversion_id", "conversion_action", "critical", "Conversion action ID"),
     ("gclid", "gclid", "critical", "Google Click ID for attribution"),
-    ("conversion_date_time", "conversion_date_time", "critical", "Conversion timestamp"),
+    ("ingested_at", "conversion_date_time", "critical", "Conversion timestamp"),
     ("conversion_value", "conversion_value", "warning", "Value for ROAS"),
     ("currency_code", "currency_code", "warning", "Currency for conversion value"),
     ("order_id", "order_id", "optional", "Deduplication and reporting"),
-    ("user_agent", "user_agent", "optional", "User differentiation"),
-    ("google_email", "email", "optional", "Hashed email for matching"),
+    ("email", "email", "optional", "Hashed email for matching"),
 ]
 
 GOOGLE_ADS_FLOAT_COLUMNS = {"conversion_value"}
 
+# Weights for weighted data quality score. categoryScore = avg(completion rate per param in category); total = sum(categoryScore × weight).
+SCORE_WEIGHTS = {"critical": 0.60, "warning": 0.30, "optional": 0.10}
+
+
+def _weighted_score(
+    total_events: int,
+    sum_critical_present: int,
+    sum_warning_present: int,
+    sum_optional_present: int,
+    n_critical: int,
+    n_warning: int,
+    n_optional: int,
+) -> float:
+    """
+    Compute weighted data quality score 0-100 from per-category completeness.
+    Completeness per category = sum(present in category) / (total_events * n_params_in_category).
+    If a category has no params (n=0), treat its completeness as 1.0.
+    """
+    if total_events == 0:
+        return 0.0
+    w = SCORE_WEIGHTS
+    comp_crit = (
+        sum_critical_present / (total_events * n_critical)
+        if n_critical else 1.0
+    )
+    comp_warn = (
+        sum_warning_present / (total_events * n_warning)
+        if n_warning else 1.0
+    )
+    comp_opt = (
+        sum_optional_present / (total_events * n_optional)
+        if n_optional else 1.0
+    )
+    return round(
+        (w["critical"] * comp_crit + w["warning"] * comp_warn + w["optional"] * comp_opt) * 100.0,
+        1,
+    )
+
+
+def _param_counts_by_category(platform: str) -> tuple[int, int, int]:
+    """Return (n_critical, n_warning, n_optional) for the platform."""
+    params = META_CAPI_PARAMS if platform == "meta-capi" else GOOGLE_ADS_PARAMS
+    n_crit = sum(1 for p in params if p[2] == "critical")
+    n_warn = sum(1 for p in params if p[2] == "warning")
+    n_opt = sum(1 for p in params if p[2] == "optional")
+    return (n_crit, n_warn, n_opt)
+
+
+def _category_sum_exprs(platform: str) -> tuple[str, str, str]:
+    """Return (critical_per_event_sum, warning_per_event_sum, optional_per_event_sum) SQL expressions."""
+    params = META_CAPI_PARAMS if platform == "meta-capi" else GOOGLE_ADS_PARAMS
+    floats = META_CAPI_FLOAT_COLUMNS if platform == "meta-capi" else GOOGLE_ADS_FLOAT_COLUMNS
+    crit_cols = [p[0] for p in params if p[2] == "critical"]
+    warn_cols = [p[0] for p in params if p[2] == "warning"]
+    opt_cols = [p[0] for p in params if p[2] == "optional"]
+
+    def parts(cols: list[str]) -> str:
+        if not cols:
+            return "0"
+        return " + ".join(f"({_present_expr(c, c in floats)})" for c in cols)
+
+    return (parts(crit_cols), parts(warn_cols), parts(opt_cols))
+
+
+def _quoted(column: str) -> str:
+    """BigQuery identifier (backtick-quoted for reserved words e.g. value)."""
+    return f"`{column}`"
+
 
 def _present_expr(column: str, is_float: bool) -> str:
     """SQL expression: 1 if param is present, 0 otherwise."""
+    col = _quoted(column)
     if is_float:
-        return f"CASE WHEN {column} IS NOT NULL THEN 1 ELSE 0 END"
-    return f"CASE WHEN NULLIF(TRIM(COALESCE(CAST({column} AS STRING), '')), '') IS NOT NULL THEN 1 ELSE 0 END"
+        return f"CASE WHEN {col} IS NOT NULL THEN 1 ELSE 0 END"
+    return f"CASE WHEN NULLIF(TRIM(COALESCE(CAST({col} AS STRING), '')), '') IS NOT NULL THEN 1 ELSE 0 END"
 
 
 def _critical_cols_present(platform: str) -> str:
@@ -104,7 +170,7 @@ def _platform_where(platform: str) -> str:
 def _base_from_where(date_from: str, date_to: str, platform: str | None = None) -> str:
     """Returns FROM + WHERE fragment for date range and optional platform."""
     platform_filter = f" AND ({_platform_where(platform)})" if platform else ""
-    # Include rows that have a derivable date (event_time for Meta, or conversion_date_time for Google Ads).
+    # Include rows that have a derivable date (event_time for Meta, or ingested_at for Google Ads).
     return f"""
     FROM `{TABLE_MARKETING_AUDIT}`
     WHERE {EVENT_DATE_EXPR} BETWEEN @date_from AND @date_to
@@ -128,31 +194,46 @@ def query_marketing_overview(
         ]
     )
 
-    # Per-platform: total, failed (missing any critical), match_rate; then previous period for trend
+    # Per-platform: total, failed, match_rate, weighted score; previous period for trend
     platforms_result: list[dict[str, Any]] = []
     for platform in MARKETING_PLATFORMS:
         plat_name = "Meta CAPI" if platform == "meta-capi" else "Google Ads"
         from_clause = _base_from_where(date_from, date_to, platform)
         all_present = _critical_cols_present(platform)
+        crit_sum, warn_sum, opt_sum = _category_sum_exprs(platform)
+        n_crit_p, n_warn_p, n_opt_p = _param_counts_by_category(platform)
         query = f"""
         WITH base AS (
           SELECT
             {EVENT_DATE_EXPR} AS event_date,
-            {all_present} AS all_critical_present
+            {all_present} AS all_critical_present,
+            ({crit_sum}) AS crit_per_event,
+            ({warn_sum}) AS warn_per_event,
+            ({opt_sum}) AS opt_per_event
           {from_clause}
         ),
         agg AS (
           SELECT
             COUNT(*) AS total,
-            SUM(CASE WHEN all_critical_present = 0 THEN 1 ELSE 0 END) AS failed
+            SUM(CASE WHEN all_critical_present = 0 THEN 1 ELSE 0 END) AS failed,
+            SUM(crit_per_event) AS sum_critical_present,
+            SUM(warn_per_event) AS sum_warning_present,
+            SUM(opt_per_event) AS sum_optional_present
           FROM base
         )
-        SELECT total, failed FROM agg
+        SELECT total, failed, sum_critical_present, sum_warning_present, sum_optional_present FROM agg
         """
         rows = list(client.query(query, job_config=job_config))
-        total = int(rows[0].total or 0) if rows else 0
-        failed = int(rows[0].failed or 0) if rows else 0
+        r0 = rows[0] if rows else None
+        total = int(r0.total or 0) if r0 else 0
+        failed = int(r0.failed or 0) if r0 else 0
+        sum_crit = int(r0.sum_critical_present or 0) if r0 else 0
+        sum_warn = int(r0.sum_warning_present or 0) if r0 else 0
+        sum_opt = int(r0.sum_optional_present or 0) if r0 else 0
         match_rate = round(100.0 * (total - failed) / total, 1) if total else 0.0
+        weighted_score = _weighted_score(
+            total, sum_crit, sum_warn, sum_opt, n_crit_p, n_warn_p, n_opt_p
+        )
 
         # Previous period for trend (same length, immediately before date_from)
         start_d = datetime.strptime(date_from, "%Y-%m-%d").date()
@@ -171,29 +252,45 @@ def query_marketing_overview(
         prev_from_clause = _base_from_where(prev_from, prev_to, platform)
         prev_query = f"""
         WITH base AS (
-          SELECT {all_present} AS all_critical_present
+          SELECT
+            {all_present} AS all_critical_present,
+            ({crit_sum}) AS crit_per_event,
+            ({warn_sum}) AS warn_per_event,
+            ({opt_sum}) AS opt_per_event
           {prev_from_clause}
         )
-        SELECT COUNT(*) AS total, SUM(CASE WHEN all_critical_present = 0 THEN 1 ELSE 0 END) AS failed
+        SELECT
+          COUNT(*) AS total,
+          SUM(CASE WHEN all_critical_present = 0 THEN 1 ELSE 0 END) AS failed,
+          SUM(crit_per_event) AS sum_critical_present,
+          SUM(warn_per_event) AS sum_warning_present,
+          SUM(opt_per_event) AS sum_optional_present
         FROM base
         """
         prev_rows = list(client.query(prev_query, job_config=prev_config))
-        prev_total = int(prev_rows[0].total or 0) if prev_rows else 0
-        prev_failed = int(prev_rows[0].failed or 0) if prev_rows else 0
-        prev_match = 100.0 * (prev_total - prev_failed) / prev_total if prev_total else 0.0
-        trend = round(match_rate - prev_match, 1)
+        pr0 = prev_rows[0] if prev_rows else None
+        prev_total = int(pr0.total or 0) if pr0 else 0
+        prev_sum_crit = int(pr0.sum_critical_present or 0) if pr0 else 0
+        prev_sum_warn = int(pr0.sum_warning_present or 0) if pr0 else 0
+        prev_sum_opt = int(pr0.sum_optional_present or 0) if pr0 else 0
+        prev_weighted = _weighted_score(
+            prev_total, prev_sum_crit, prev_sum_warn, prev_sum_opt,
+            n_crit_p, n_warn_p, n_opt_p,
+        )
+        trend = round(weighted_score - prev_weighted, 1)
 
         platforms_result.append({
             "platformId": platform,
             "name": plat_name,
             "matchRate": match_rate,
+            "weightedScore": weighted_score,
             "totalEvents": total,
             "failedEvents": failed,
             "trend": trend,
         })
 
     payload_health = (
-        round(sum(p["matchRate"] for p in platforms_result) / len(platforms_result))
+        round(sum(p["weightedScore"] for p in platforms_result) / len(platforms_result))
         if platforms_result else 0
     )
 
@@ -343,6 +440,13 @@ def query_marketing_platform_detail(
             "description": description,
         })
 
+    # Weighted score from per-category sums (eventsWithParam)
+    n_crit, n_warn, n_opt = _param_counts_by_category(platform_id)
+    sum_crit = sum(p["eventsWithParam"] for p in parameters if p["category"] == "critical")
+    sum_warn = sum(p["eventsWithParam"] for p in parameters if p["category"] == "warning")
+    sum_opt = sum(p["eventsWithParam"] for p in parameters if p["category"] == "optional")
+    weighted_score = _weighted_score(total, sum_crit, sum_warn, sum_opt, n_crit, n_warn, n_opt)
+
     # Error rate trend: per day, pct of events missing >=1 critical, >=1 warning, >=1 optional
     crit_cols = [c[0] for c in params_def if c[2] == "critical"]
     warn_cols = [c[0] for c in params_def if c[2] == "warning"]
@@ -386,6 +490,7 @@ def query_marketing_platform_detail(
         "platformId": platform_id,
         "name": name,
         "matchRate": match_rate,
+        "weightedScore": weighted_score,
         "totalEvents": total,
         "failedEvents": failed,
         "parameters": parameters,

@@ -8,6 +8,7 @@ export interface PlatformSummary {
   platformId: PlatformId;
   name: string;
   matchRate: number;
+  weightedScore: number;
   totalEvents: number;
   failedEvents: number;
   trend: number; // delta vs previous period (e.g. +2.1 or -1.3)
@@ -54,6 +55,7 @@ export interface PlatformDetailResponse {
   platformId: PlatformId;
   name: string;
   matchRate: number;
+  weightedScore: number;
   totalEvents: number;
   failedEvents: number;
   parameters: PlatformParam[];
@@ -109,6 +111,7 @@ export function getMarketingOverview(options?: {
       platformId: "meta-capi",
       name: "Meta CAPI",
       matchRate: vary(88),
+      weightedScore: vary(86),
       totalEvents: 124500,
       failedEvents: 14940,
       trend: vary(2.1),
@@ -117,6 +120,7 @@ export function getMarketingOverview(options?: {
       platformId: "google-ads",
       name: "Google Ads",
       matchRate: vary(85),
+      weightedScore: vary(84),
       totalEvents: 98200,
       failedEvents: 14730,
       trend: vary(-0.8),
@@ -124,7 +128,7 @@ export function getMarketingOverview(options?: {
   ];
 
   const payloadHealthScore = Math.round(
-    platforms.reduce((s, p) => s + p.matchRate, 0) / platforms.length
+    platforms.reduce((s, p) => s + p.weightedScore, 0) / platforms.length
   );
 
   const volumeTrend: VolumeTrendPoint[] = dates.map((date, i) => {
@@ -225,9 +229,21 @@ export function getPlatformDetail(platformId: PlatformId): PlatformDetailRespons
   const paramDefs = platformId === "meta-capi" ? META_PARAMS : GOOGLE_ADS_PARAMS;
   const parameters = buildParams(paramDefs, totalEvents);
 
-  const avgCritical = parameters.filter((p) => p.category === "critical").reduce((s, p) => s + p.percentage, 0) / (parameters.filter((p) => p.category === "critical").length || 1);
-  const avgWarning = parameters.filter((p) => p.category === "warning").reduce((s, p) => s + p.percentage, 0) / (parameters.filter((p) => p.category === "warning").length || 1);
-  const avgOptional = parameters.filter((p) => p.category === "optional").reduce((s, p) => s + p.percentage, 0) / (parameters.filter((p) => p.category === "optional").length || 1);
+  // Mock weighted score from average of category completeness (60% crit, 25% warn, 15% opt)
+  const nCrit = parameters.filter((p) => p.category === "critical").length || 1;
+  const nWarn = parameters.filter((p) => p.category === "warning").length || 1;
+  const nOpt = parameters.filter((p) => p.category === "optional").length || 1;
+  const sumCrit = parameters.filter((p) => p.category === "critical").reduce((s, p) => s + p.eventsWithParam, 0);
+  const sumWarn = parameters.filter((p) => p.category === "warning").reduce((s, p) => s + p.eventsWithParam, 0);
+  const sumOpt = parameters.filter((p) => p.category === "optional").reduce((s, p) => s + p.eventsWithParam, 0);
+  const compCrit = nCrit ? sumCrit / (totalEvents * nCrit) : 1;
+  const compWarn = nWarn ? sumWarn / (totalEvents * nWarn) : 1;
+  const compOpt = nOpt ? sumOpt / (totalEvents * nOpt) : 1;
+  const weightedScore = Math.round((0.6 * compCrit + 0.3 * compWarn + 0.1 * compOpt) * 1000) / 10;
+
+  const avgCritical = parameters.filter((p) => p.category === "critical").reduce((s, p) => s + p.percentage, 0) / nCrit;
+  const avgWarning = parameters.filter((p) => p.category === "warning").reduce((s, p) => s + p.percentage, 0) / nWarn;
+  const avgOptional = parameters.filter((p) => p.category === "optional").reduce((s, p) => s + p.percentage, 0) / nOpt;
 
   const errorRateTrend = buildErrorRateTrend(dates, avgCritical, avgWarning, avgOptional);
 
@@ -235,6 +251,7 @@ export function getPlatformDetail(platformId: PlatformId): PlatformDetailRespons
     platformId,
     name: platformId === "meta-capi" ? "Meta CAPI" : "Google Ads",
     matchRate,
+    weightedScore,
     totalEvents,
     failedEvents,
     parameters,

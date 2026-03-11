@@ -49,7 +49,10 @@ export function PayloadHealthScore({ score, previousScore }: PayloadHealthScoreP
     <div className="bg-slate-800 border-2 border-slate-700 rounded-lg p-8 shadow-lg">
       <p className="text-sm text-slate-400 mb-2">Payload Health Score</p>
       <div className="flex items-center gap-3">
-        <span className={`text-5xl font-bold ${status.color}`}>{score}%</span>
+        <div className="flex items-start gap-0.5">
+        <span className={`text-5xl font-bold ${status.color}`}>{Math.round(score)}</span>
+        <span className={`text-lg font-bold ${status.color} pt-1`}>/100</span>
+      </div>
         <Icon className={`${status.color} w-12 h-12`} />
         <div className={`flex items-center gap-1 ${trend.color}`}>
           {TrendIcon && <TrendIcon className="w-4 h-4" />}

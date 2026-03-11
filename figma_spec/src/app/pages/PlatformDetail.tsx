@@ -22,6 +22,38 @@ import {
 } from "../api/marketing";
 import type { DateRangeValue } from "../components/DateRangePicker";
 
+const SCORE_WEIGHTS = { critical: 0.6, warning: 0.3, optional: 0.1 };
+
+/** Prefer weighted score from API; accept camelCase or snake_case. If missing or 0, compute from parameters (60/30/10). */
+function getDataQualityScore(
+  detail: PlatformDetailResponse & { weighted_score?: number }
+): number {
+  const fromApi =
+    typeof detail.weightedScore === "number"
+      ? detail.weightedScore
+      : typeof (detail as { weighted_score?: number }).weighted_score === "number"
+        ? (detail as { weighted_score: number }).weighted_score
+        : null;
+  if (fromApi != null && fromApi > 0) return fromApi;
+
+  const total = detail.totalEvents ?? 0;
+  if (total === 0 || !detail.parameters?.length) return fromApi ?? 0;
+
+  const params = detail.parameters;
+  const nCrit = params.filter((p) => p.category === "critical").length || 1;
+  const nWarn = params.filter((p) => p.category === "warning").length || 1;
+  const nOpt = params.filter((p) => p.category === "optional").length || 1;
+  const sumCrit = params.filter((p) => p.category === "critical").reduce((s, p) => s + p.eventsWithParam, 0);
+  const sumWarn = params.filter((p) => p.category === "warning").reduce((s, p) => s + p.eventsWithParam, 0);
+  const sumOpt = params.filter((p) => p.category === "optional").reduce((s, p) => s + p.eventsWithParam, 0);
+  const compCrit = nCrit ? sumCrit / (total * nCrit) : 1;
+  const compWarn = nWarn ? sumWarn / (total * nWarn) : 1;
+  const compOpt = nOpt ? sumOpt / (total * nOpt) : 1;
+  const computed =
+    SCORE_WEIGHTS.critical * compCrit + SCORE_WEIGHTS.warning * compWarn + SCORE_WEIGHTS.optional * compOpt;
+  return Math.round(computed * 1000) / 10;
+}
+
 const CATEGORY_STYLES: Record<
   ParamCategory,
   { label: string; badge: string; border: string }
@@ -133,8 +165,11 @@ export function PlatformDetail() {
               </p>
               <dl className="mt-4 flex flex-wrap gap-6 text-sm">
                 <div>
-                  <dt className="text-slate-500">Match rate</dt>
-                  <dd className="text-xl font-semibold text-white">{detail.matchRate}%</dd>
+                  <dt className="text-slate-500">Data quality score</dt>
+                  <dd className="flex items-start gap-0.5 text-xl font-semibold text-white">
+                    <span>{getDataQualityScore(detail)}</span>
+                    <span className="text-sm font-semibold pt-0.5">/100</span>
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-slate-500">Total events</dt>

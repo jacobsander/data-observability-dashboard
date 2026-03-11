@@ -12,7 +12,12 @@ interface ErrorDistributionChartProps {
 }
 
 export function ErrorDistributionChart({ data }: ErrorDistributionChartProps) {
-  const chartData = data.map((d) => ({ ...d, fill: CATEGORY_COLORS[d.category] ?? "#64748b" }));
+  const total = data.reduce((sum, d) => sum + d.count, 0);
+  const chartData = data.map((d) => ({
+    ...d,
+    fill: CATEGORY_COLORS[d.category] ?? "#64748b",
+    percentage: total > 0 ? (100 * d.count) / total : 0,
+  }));
 
   return (
     <div className="h-64 md:h-80 w-full">
@@ -25,7 +30,9 @@ export function ErrorDistributionChart({ data }: ErrorDistributionChartProps) {
             cx="50%"
             cy="50%"
             outerRadius="70%"
-            label={({ name, count }) => `${name}: ${count.toLocaleString()}`}
+            label={({ name, percentage }: { name: string; percentage: number }) =>
+              `${name}: ${percentage.toFixed(1)}%`
+            }
           >
             {chartData.map((entry, index) => (
               <Cell key={`cell-${entry.category}-${index}`} fill={entry.fill} />
@@ -37,7 +44,10 @@ export function ErrorDistributionChart({ data }: ErrorDistributionChartProps) {
               border: "1px solid #475569",
               borderRadius: "8px",
             }}
-            formatter={(value: number) => [value.toLocaleString(), "Count"]}
+            formatter={(value: number, name: string, props: { payload: { percentage: number } }) => [
+              `${props.payload.percentage.toFixed(1)}%`,
+              name,
+            ]}
           />
           <Legend />
         </PieChart>

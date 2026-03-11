@@ -59,7 +59,10 @@ export function HealthScore({ score, previousScore, topMissing }: HealthScorePro
           <div>
             <p className="text-sm text-slate-400 mb-2">Overall Health Score</p>
             <div className="flex items-center gap-3">
-              <span className={`text-5xl font-bold ${status.color} transition-transform duration-300 hover:scale-110 inline-block cursor-default`}>{score}%</span>
+              <div className="flex items-start gap-0.5">
+                <span className={`text-5xl font-bold ${status.color} transition-transform duration-300 hover:scale-110 cursor-default`}>{Math.round(score)}</span>
+                <span className={`text-lg font-bold ${status.color} pt-1`}>/100</span>
+              </div>
               <Icon className={`${status.color} w-12 h-12`} />
               <div className={`flex items-center gap-1 ${trend.color}`}>
                 {TrendIcon && <TrendIcon className="w-4 h-4" />}

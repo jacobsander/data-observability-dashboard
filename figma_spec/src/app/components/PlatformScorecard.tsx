@@ -17,6 +17,7 @@ export function PlatformScorecard({ platform, index = 0, dateRange }: PlatformSc
     return "text-red-600";
   };
 
+  const score = platform.weightedScore ?? platform.matchRate;
   const trend = platform.trend;
   const trendDisplay =
     trend > 0
@@ -46,10 +47,11 @@ export function PlatformScorecard({ platform, index = 0, dateRange }: PlatformSc
             <span className="text-xs font-medium">{trendDisplay.value}</span>
           </div>
         </div>
-        <div className={`text-3xl font-bold ${getScoreColor(platform.matchRate)}`}>
-          {platform.matchRate}%
+        <div className={`flex items-start gap-0.5 ${getScoreColor(score)}`}>
+          <span className="font-bold text-3xl">{Math.round(score * 10) / 10}</span>
+          <span className="font-bold text-sm pt-0.5">/100</span>
         </div>
-        <p className="text-xs text-slate-400 mt-1">Match rate</p>
+        <p className="text-xs text-slate-400 mt-1">Data quality score</p>
         <dl className="mt-4 grid grid-cols-2 gap-2 text-sm text-slate-300">
           <div>
             <dt className="text-slate-500">Total events</dt>
@@ -67,13 +69,13 @@ export function PlatformScorecard({ platform, index = 0, dateRange }: PlatformSc
         <div className="mt-3 bg-slate-700 rounded-full h-2 overflow-hidden">
           <div
             className={`h-full ${
-              platform.matchRate >= 67
+              score >= 67
                 ? "bg-green-500"
-                : platform.matchRate >= 34
+                : score >= 34
                   ? "bg-yellow-500"
                   : "bg-red-500"
             }`}
-            style={{ width: `${platform.matchRate}%` }}
+            style={{ width: `${score}%` }}
           />
         </div>
       </motion.div>
