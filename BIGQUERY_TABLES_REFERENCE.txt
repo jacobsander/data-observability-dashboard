@@ -30,6 +30,7 @@ Updated: 2026-02-26
   | int_moomin__event_param_status    | Per-event, per-param status (detail)       |
   | fct_ga4_validation               | One row per (date, event, param) + status |
   | fct_ga4_validation_summary_daily | One row per date, wide % columns          |
+  | stg_marketing_audit__unpacked    | Staging: marketing events (Meta CAPI, Google Ads), one row per event |
 
   For the dashboard, the main tables to query are:
     - fct_ga4_validation_summary_daily  (overview charts)
@@ -162,6 +163,35 @@ Updated: 2026-02-26
     - Latest day only:
       SELECT * FROM `mimetic-perigee-290610.obs_layer_poc_moomin.fct_ga4_validation_summary_daily`
       ORDER BY date DESC LIMIT 1;
+
+
+3.6 stg_marketing_audit__unpacked
+  Purpose: Staging table of marketing/audit events for Meta CAPI and Google Ads.
+           Used by the Marketing Data Quality dashboard (payload health, parameters by category).
+  Grain:   One row per event instance. No explicit date column; derive date from event_time.
+
+  Date filtering:
+    Prefer ingested_date (DATE) so dashboard date ranges align with ingestion.
+    Fallback: event_time is STRING (Unix timestamp in seconds). Use:
+      event_date = DATE(TIMESTAMP_SECONDS(SAFE_CAST(event_time AS INT64)))
+    Google Ads fallback: conversion_date_time (STRING) parsed from first 10 chars (YYYY-MM-DD).
+  Filter by platform (LOWER(TRIM(platform))) for 'meta-capi' / 'meta_capi' or 'google-ads' / 'google_ads'.
+
+  Columns (main; all NULLABLE):
+    brand, market, platform          STRING   Filter platform for Meta vs Google Ads
+    event_id, event_name, event_time STRING   Meta CAPI critical params
+    action_source                    STRING   Meta CAPI critical
+    email, phone, fbc, fbp           STRING   Meta CAPI user_data (warning/optional)
+    client_ip_address, client_user_agent STRING
+    custom_data_value                FLOAT    Meta CAPI custom_data.value
+    custom_data_currency, custom_data_content_ids, custom_data_content_type STRING
+    first_name, last_name, city, state, zipcode, country STRING
+    conversion_action, gclid, conversion_date_time STRING   Google Ads critical
+    conversion_value                 FLOAT    Google Ads warning
+    currency_code, order_id, user_agent STRING
+    google_email                     STRING   Google Ads optional
+
+  Use: GET /api/marketing/overview and GET /api/marketing/platform/<platform_id> (from Flask app).
 
 
 4. EVENTS (FIXED LIST)

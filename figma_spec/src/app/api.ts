@@ -133,3 +133,42 @@ export async function fetchParamDetail(
   if (ga4Property?.length) params.set("ga4_property", ga4Property.join(","));
   return fetchJson<ParamDetailRow[]>(`${API_BASE}/param-detail?${params}`);
 }
+
+// Marketing data quality (BigQuery stg_marketing_audit__unpacked)
+export type { MarketingOverview, PlatformDetailResponse, PlatformId } from "./api/marketing";
+export async function fetchMarketingOverview(options?: {
+  from?: string;
+  to?: string;
+  days?: number;
+}): Promise<import("./api/marketing").MarketingOverview> {
+  const params = new URLSearchParams();
+  if (options?.from && options?.to) {
+    params.set("from", options.from);
+    params.set("to", options.to);
+  } else {
+    params.set("days", String(options?.days ?? 7));
+  }
+  return fetchJson<import("./api/marketing").MarketingOverview>(
+    `${API_BASE}/marketing/overview?${params}`
+  );
+}
+
+export async function fetchPlatformDetail(
+  platformId: import("./api/marketing").PlatformId,
+  options?: { from?: string; to?: string; days?: number }
+): Promise<import("./api/marketing").PlatformDetailResponse | null> {
+  const params = new URLSearchParams();
+  if (options?.from && options?.to) {
+    params.set("from", options.from);
+    params.set("to", options.to);
+  } else {
+    params.set("days", String(options?.days ?? 7));
+  }
+  const res = await fetch(`${API_BASE}/marketing/platform/${platformId}?${params}`);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error((err as { error?: string }).error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}

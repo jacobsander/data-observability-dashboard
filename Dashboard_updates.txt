@@ -1,0 +1,252 @@
+================================================================================
+MARKETING DATA QUALITY FEATURES — SPECIFICATION FOR DEMO REPLICATION
+================================================================================
+This document describes the recent changes added to the observability-layer-ui
+project for Marketing Data Quality (Google Ads, Meta CAPI). Use it to replicate
+the same UI and behavior in a demo project that uses dummy data instead of
+BigQuery.
+
+--------------------------------------------------------------------------------
+1. OVERVIEW
+--------------------------------------------------------------------------------
+We added a full "Marketing Data Quality" section to the main Dashboard and a new
+Platform Detail page for each marketing platform (Meta CAPI, Google Ads). Data
+is fetched from an API module that currently uses mock/dummy data; in the real
+project this would be replaced with BigQuery-backed endpoints. The demo project
+should implement the same API types and the same UI, using its own dummy data.
+
+Supported platforms:
+  - meta-capi  (display name: "Meta CAPI")
+  - google-ads (display name: "Google Ads")
+
+--------------------------------------------------------------------------------
+2. API MODULE: marketing.ts
+--------------------------------------------------------------------------------
+Location: src/app/api/marketing.ts (or equivalent in your app structure)
+
+2.1 Types to define (export all of these)
+-----------------------------------------
+- PlatformId = "meta-capi" | "google-ads"
+
+- ParamCategory = "critical" | "warning" | "optional"
+
+- PlatformSummary
+  - platformId: PlatformId
+  - name: string
+  - matchRate: number          (e.g. 88, 85)
+  - totalEvents: number
+  - failedEvents: number
+  - trend: number              (delta vs previous period, e.g. +2.1 or -0.8)
+
+- MarketingOverview
+  - payloadHealthScore: number (e.g. average of platform match rates, rounded)
+  - platforms: PlatformSummary[]
+  - volumeTrend: VolumeTrendPoint[]
+  - errorDistribution: ErrorDistributionItem[]
+
+- VolumeTrendPoint
+  - date: string               (can be "MM-DD" for display)
+  - totalEvents: number
+  - errorEvents: number
+  - id: string                 (unique, e.g. "vol-0-2025-03-01")
+
+- ErrorDistributionItem
+  - category: string           ("critical" | "warning" | "optional")
+  - count: number
+  - name: string               (display label for chart, e.g. "Critical", "Warning", "Optional")
+
+- PlatformParam
+  - paramKey: string
+  - category: ParamCategory
+  - eventsWithParam: number
+  - eventsMissing: number
+  - percentage: number         (completion %)
+  - description: string
+
+- ErrorRateTrendPoint
+  - date: string               (e.g. "MM-DD")
+  - criticalErrorPct: number   (0–100, % missing for critical params)
+  - warningErrorPct: number
+  - optionalErrorPct: number
+  - id: string
+
+- PlatformDetailResponse
+  - platformId: PlatformId
+  - name: string
+  - matchRate: number
+  - totalEvents: number
+  - failedEvents: number
+  - parameters: PlatformParam[]
+  - errorRateTrend: ErrorRateTrendPoint[]
+
+2.2 API functions to implement
+-------------------------------
+- fetchMarketingOverview(options?: { from?: string; to?: string; days?: number }): Promise<MarketingOverview>
+  - If from and to are provided, use that date range (YYYY-MM-DD).
+  - Otherwise use last N days (default 7).
+  - Return: payloadHealthScore (e.g. average of platform match rates), platforms array (Meta CAPI + Google Ads), volumeTrend (one point per date), errorDistribution (three items: critical, warning, optional with counts).
+
+- fetchPlatformDetail(platformId: PlatformId): Promise<PlatformDetailResponse | null>
+  - Return null for unknown platformId.
+  - Return full platform detail with parameters list and errorRateTrend (one point per date in range).
+  - Parameters should be platform-specific (see parameter lists below).
+
+- Export: MARKETING_PLATFORM_IDS: PlatformId[] = ["meta-capi", "google-ads"]
+
+2.3 Parameter definitions (for dummy data)
+------------------------------------------
+Meta CAPI parameters (critical / warning / optional with descriptions):
+  Critical: event_id, event_name, event_time, action_source
+  Warning:  user_data.em, user_data.ph, user_data.fbc, user_data.fbp, user_data.client_ip_address, user_data.client_user_agent
+  Optional: custom_data.value, custom_data.currency, custom_data.content_ids, custom_data.content_type, user_data.fn, user_data.ln, user_data.ct, user_data.st, user_data.zp, user_data.country
+
+Google Ads parameters (for UI pattern):
+  Critical: conversion_action, gclid, conversion_date_time
+  Warning:  conversion_value, currency_code
+  Optional: order_id, user_agent, email
+
+(Exact descriptions can be copied from the marketing.ts file; e.g. event_id: "UUID/ULID for Pixel/CAPI deduplication".)
+
+--------------------------------------------------------------------------------
+3. NEW COMPONENTS
+--------------------------------------------------------------------------------
+All components use the existing design system: slate-800/700 backgrounds,
+slate-300/400 text, green/yellow/red for good/warning/critical.
+
+3.1 PayloadHealthScore.tsx
+--------------------------
+- Props: score: number; previousScore?: number
+- Renders a single large card: "Payload Health Score", big score %, status label (Good / Warning / Critical), optional trend (up/down/neutral) with icon.
+- Health bands: >= 67 Good (green, CheckCircle2), >= 34 Warning (yellow, AlertCircle), else Critical (red, XCircle).
+- Trend: if previousScore provided, show diff (e.g. +2% or -1%) with TrendingUp / TrendingDown / Minus from lucide-react.
+- Styling: bg-slate-800, border-2 border-slate-700, rounded-lg, p-8. Score text-5xl font-bold with status color; icon w-12 h-12.
+
+3.2 PlatformScorecard.tsx
+-------------------------
+- Props: platform: PlatformSummary; index?: number; dateRange?: DateRangeValue | null
+- Renders a clickable card (Link to `/platform/:platformId`) that passes state: { dateRange } when present.
+- Content: platform name (small heading), trend badge (e.g. +2.1% / -0.8% with TrendingUp/TrendingDown/Minus), large match rate % with color (green >= 67, yellow >= 34, red otherwise), "Match rate" label, Total events + Failed (dl/dt/dd), and a progress bar (bg-slate-700, inner bar green/yellow/red by match rate, width: matchRate%).
+- Use motion (motion/react): initial opacity 0 y 20, animate in with delay index * 0.1, whileHover scale 1.05. Card: bg-slate-800, border border-slate-700, rounded-lg, p-6, hover:shadow-lg hover:border-slate-600.
+- DateRangeValue: { from: string; to: string } (from DateRangePicker).
+
+3.3 VolumeTrendChart.tsx
+------------------------
+- Props: data: VolumeTrendPoint[]
+- Recharts AreaChart with two areas: totalEvents (blue #3b82f6) and errorEvents (red #ef4444). Use linearGradient for fill (opacity 0.35 at 0%, 0.05 at 100%).
+- XAxis: dataKey "date", stroke/tick #94a3b8. YAxis: same. CartesianGrid strokeDasharray "3 3" stroke #475569. Tooltip: dark contentStyle (#1e293b, border #475569, borderRadius 8px), labelStyle #e2e8f0. Legend. Height h-64 md:h-80, ResponsiveContainer 100% width/height.
+
+3.4 ErrorDistributionChart.tsx
+-------------------------------
+- Props: data: ErrorDistributionItem[]
+- Recharts PieChart. Colors: critical #ef4444, warning #f97316, optional #64748b. Pie: dataKey "count", nameKey "name", outerRadius "70%", label showing name and count (toLocaleString). Tooltip formatter: value.toLocaleString(), "Count". Same tooltip/contentStyle as other charts. Legend. Height h-64 md:h-80.
+
+--------------------------------------------------------------------------------
+4. DASHBOARD CHANGES
+--------------------------------------------------------------------------------
+File: Dashboard.tsx (or main dashboard page)
+
+4.1 Imports
+-----------
+- fetchMarketingOverview, type MarketingOverview from api/marketing
+- PayloadHealthScore, PlatformScorecard, VolumeTrendChart, ErrorDistributionChart
+
+4.2 State
+---------
+- marketingOverview: MarketingOverview | null
+- marketingLoading: boolean (true initially)
+
+4.3 Data fetching
+-----------------
+- Second useEffect (in addition to existing dashboard fetch): when dateRange or equivalent changes, set marketingLoading true, call fetchMarketingOverview({ from: dateRange.from, to: dateRange.to } or { days: 7 }). On success set marketingOverview(res), on catch set null, in finally set marketingLoading false. Use a cancelled flag and cleanup to avoid setting state after unmount.
+
+4.4 UI: Marketing Data Quality section
+--------------------------------------
+- Place after "Event Quality Metrics" (or equivalent), e.g. mt-12.
+- Heading: "Marketing Data Quality" (text-xl font-semibold text-white mb-4).
+- If marketingLoading: show same skeleton as Health Score (DashboardSkeleton.HealthScore or similar).
+- If !marketingOverview: single card "No marketing data available." (bg-slate-800 border border-slate-700 rounded-lg p-6, text-slate-400).
+- If marketingOverview:
+  - First row: PayloadHealthScore score={marketingOverview.payloadHealthScore} (optional: you can pass previousScore if you have it from a previous period).
+  - Next: grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 — map marketingOverview.platforms with PlatformScorecard, key platform.platformId, platform, index, dateRange.
+  - Next: grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 — two cards:
+    - "Volume Trend" (h3 text-sm font-medium text-slate-300 mb-4): VolumeTrendChart data={marketingOverview.volumeTrend}
+    - "Error Distribution" (same h3): ErrorDistributionChart data={marketingOverview.errorDistribution}
+- Match existing dashboard styling (slate-800, border-slate-700, rounded-lg p-6).
+
+--------------------------------------------------------------------------------
+5. NEW PAGE: PlatformDetail
+--------------------------------------------------------------------------------
+Route: /platform/:platformId
+Lazy load: import("./pages/PlatformDetail").then(m => ({ Component: m.PlatformDetail }))
+
+5.1 Behavior
+-----------
+- useParams for platformId. useLocation for state (dateRange).
+- If platformId is not in MARKETING_PLATFORM_IDS, show "Platform not found" and a "Back to Dashboard" link (to "/" with state { dateRange } if present).
+- Otherwise fetch platform detail with fetchPlatformDetail(platformId). Show loading skeleton (e.g. three placeholder blocks), then either error message (red banner) or content.
+
+5.2 Layout and content
+----------------------
+- Same page background: min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900. Container: max-w-7xl mx-auto px-4 py-8.
+- "Back to Dashboard" link with ArrowLeft icon (lucide-react), to "/" with state dateRange.
+- Header: h1 platform name (e.g. "Meta CAPI"), subtitle "Parameter quality and error rate trends" and optional " • from – to" if dateRange in state. Dl: Match rate %, Total events, Failed events (formatted with Intl.NumberFormat).
+
+5.3 Section: Error Rate Trends by Category
+------------------------------------------
+- Heading: "Error Rate Trends by Category"
+- Recharts LineChart with data = detail.errorRateTrend. Three lines: criticalErrorPct (name "Critical Errors", stroke #ef4444), warningErrorPct ("Warning Errors", #f97316), optionalErrorPct ("Optional Errors", #64748b). XAxis date, YAxis domain [0, 100], label "% Missing". Same CartesianGrid, Tooltip, Legend styling as elsewhere. Container h-64 md:h-80 in bg-slate-800 border border-slate-700 rounded-lg p-6.
+
+5.4 Section: Parameters by Category
+-----------------------------------
+- Heading: "Parameters by Category"
+- Group parameters by category (critical, warning, optional). For each category that has params, render a bordered card with:
+  - Category header: colored badge (critical: red bg-red-500/20 text-red-400 border-red-500/50; warning: orange; optional: slate). Same border on card (border-red-500/30 etc.).
+  - Table: columns Parameter (paramKey, font-mono), With param, Missing, Completion (percentage with color: >= 67 green, >= 34 yellow, else red), Description.
+- Use motion for card: initial opacity 0 y 12, animate opacity 1 y 0, duration 0.3.
+- CATEGORY_STYLES: critical → Critical label, warning → Warning, optional → Optional; each with badge and border classes as above.
+
+--------------------------------------------------------------------------------
+6. ROUTING
+--------------------------------------------------------------------------------
+Add one route:
+  path: "/platform/:platformId"
+  lazy: () => import("./pages/PlatformDetail").then(m => ({ Component: m.PlatformDetail }))
+
+(Exact syntax depends on your router — createBrowserRouter from react-router or similar.)
+
+--------------------------------------------------------------------------------
+7. DEPENDENCIES
+--------------------------------------------------------------------------------
+- react, react-router (Link, useParams, useLocation)
+- recharts (AreaChart, Area, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer)
+- lucide-react (CheckCircle2, AlertCircle, XCircle, TrendingUp, TrendingDown, Minus, ArrowLeft)
+- motion (motion/react) for PlatformScorecard and PlatformDetail parameter cards
+- date-fns or similar only if you need date formatting in the API (e.g. last7Days); Dashboard/PlatformDetail use the API’s date strings as-is.
+
+--------------------------------------------------------------------------------
+8. DATA SHAPE SUMMARY (for dummy implementation)
+--------------------------------------------------------------------------------
+- MarketingOverview: one payloadHealthScore, two platforms (Meta CAPI, Google Ads), volumeTrend array (e.g. 7 points), errorDistribution array of 3 items (critical, warning, optional).
+- PlatformDetailResponse: one platform with matchRate, totalEvents, failedEvents, parameters (list of PlatformParam with paramKey, category, eventsWithParam, eventsMissing, percentage, description), errorRateTrend (list of points with date, criticalErrorPct, warningErrorPct, optionalErrorPct, id).
+- Dates in trend/volume can be "MM-DD" for display; IDs must be unique strings.
+
+--------------------------------------------------------------------------------
+9. FILE LIST SUMMARY
+--------------------------------------------------------------------------------
+New files:
+  - src/app/api/marketing.ts           (types + fetchMarketingOverview + fetchPlatformDetail + MARKETING_PLATFORM_IDS)
+  - src/app/components/PayloadHealthScore.tsx
+  - src/app/components/PlatformScorecard.tsx
+  - src/app/components/VolumeTrendChart.tsx
+  - src/app/components/ErrorDistributionChart.tsx
+  - src/app/pages/PlatformDetail.tsx
+
+Modified files:
+  - src/app/pages/Dashboard.tsx        (state, useEffect for marketing, Marketing Data Quality section)
+  - src/app/routes.ts                  (add /platform/:platformId route)
+
+Replace the mock implementations in marketing.ts with your own dummy data or keep mock logic; ensure the same types and function signatures so the UI stays unchanged.
+
+================================================================================
+END OF SPEC
+================================================================================

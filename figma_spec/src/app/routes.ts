@@ -16,4 +16,9 @@ export const router = createBrowserRouter([
     lazy: () =>
       import("./pages/ParamDetail").then((m) => ({ Component: m.ParamDetail })),
   },
+  {
+    path: "/platform/:platformId",
+    lazy: () =>
+      import("./pages/PlatformDetail").then((m) => ({ Component: m.PlatformDetail })),
+  },
 ]);

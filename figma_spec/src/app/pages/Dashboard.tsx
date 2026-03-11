@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router";
 import {
   AreaChart,
@@ -19,11 +19,17 @@ import type { Ga4PropertyValue } from "../components/Ga4PropertyPicker";
 import {
   EVENTS,
   fetchDashboard,
+  fetchMarketingOverview,
   qualityFromSummary,
+  type MarketingOverview,
   type SessionsPurchasesRow,
   type SummaryRow,
   type TopMissingRow,
 } from "../api";
+import { PayloadHealthScore } from "../components/PayloadHealthScore";
+import { PlatformScorecard } from "../components/PlatformScorecard";
+import { VolumeTrendChart } from "../components/VolumeTrendChart";
+import { ErrorDistributionChart } from "../components/ErrorDistributionChart";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
@@ -59,6 +65,34 @@ export function Dashboard() {
     const state = location.state as { ga4Property?: Ga4PropertyValue[] } | null;
     return state?.ga4Property ?? DEFAULT_GA4_PROPERTY;
   });
+  const [marketingOverview, setMarketingOverview] = useState<MarketingOverview | null>(null);
+  const [marketingLoading, setMarketingLoading] = useState(true);
+  const [marketingError, setMarketingError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setMarketingLoading(true);
+    setMarketingError(null);
+    const opts = dateRange
+      ? { from: dateRange.from, to: dateRange.to }
+      : { days: 7 };
+    fetchMarketingOverview(opts)
+      .then((data) => {
+        if (!cancelled) setMarketingOverview(data);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setMarketingError(err instanceof Error ? err.message : "Failed to load marketing data");
+          setMarketingOverview(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setMarketingLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dateRange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -472,6 +506,53 @@ export function Dashboard() {
                   ga4Property={ga4Property}
                 />
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Marketing Data Quality — BigQuery stg_marketing_audit__unpacked */}
+        <div className="mt-12">
+          <h2 className="text-xl font-semibold text-white mb-4">
+            Marketing Data Quality
+            {marketingOverview != null && (
+              <span className="ml-2 text-slate-400 font-normal">
+                {marketingOverview.payloadHealthScore}/100
+              </span>
+            )}
+          </h2>
+          {marketingLoading ? (
+            <DashboardSkeleton.Scorecards />
+          ) : marketingError ? (
+            <p className="text-amber-400">{marketingError}</p>
+          ) : marketingOverview ? (
+            <>
+              <div className="mb-6">
+                <PayloadHealthScore score={marketingOverview.payloadHealthScore} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                {marketingOverview.platforms.map((platform, index) => (
+                  <PlatformScorecard
+                    key={platform.platformId}
+                    platform={platform}
+                    index={index}
+                    dateRange={dateRange}
+                  />
+                ))}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+                  <h3 className="text-sm font-medium text-slate-300 mb-4">Volume Trend</h3>
+                  <VolumeTrendChart data={marketingOverview.volumeTrend} />
+                </div>
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+                  <h3 className="text-sm font-medium text-slate-300 mb-4">Error Distribution</h3>
+                  <ErrorDistributionChart data={marketingOverview.errorDistribution} />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <p className="text-slate-400">No marketing data available.</p>
             </div>
           )}
         </div>
