@@ -55,36 +55,36 @@ export function Ga4PropertyPicker({
           type="button"
           disabled={disabled}
           className={cn(
-            "inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-left text-sm text-white",
-            "focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500",
+            "inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-left text-sm text-foreground shadow-sm",
+            "focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring/50",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            value.length === 0 && "text-slate-400",
+            value.length === 0 && "text-muted-foreground",
             className
           )}
         >
-          <span className="text-slate-400 text-sm shrink-0">GA4 property:</span>
+          <span className="text-muted-foreground text-sm shrink-0">GA4 property:</span>
           {displayText}
-          <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-56 p-3 border-slate-600 bg-slate-800"
+        className="w-56 p-3 border border-border bg-card shadow-lg"
       >
-        <p className="text-xs text-slate-400 mb-2">Show data from</p>
+        <p className="text-xs text-muted-foreground mb-2">Show data from</p>
         <div className="flex flex-col gap-2">
           {GA4_PROPERTY_OPTIONS.map((option) => (
             <label
               key={option.value}
               className={cn(
                 "flex items-center gap-2 cursor-pointer rounded-md px-2 py-1.5",
-                "text-slate-200 hover:bg-slate-700 hover:text-white"
+                "text-foreground hover:bg-muted hover:text-foreground"
               )}
             >
               <Checkbox
                 checked={value.includes(option.value)}
                 onCheckedChange={() => toggle(option.value)}
-                className="border-slate-500 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                className="border-border data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
               />
               <span>{option.label}</span>
             </label>

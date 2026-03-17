@@ -217,7 +217,7 @@ export function EventDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-background dark:bg-gradient-to-br dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {error && (
           <div className="mb-6 rounded-lg bg-red-900/30 border border-red-700 p-4 text-red-200">
@@ -229,7 +229,7 @@ export function EventDetail() {
         <Link
           to="/"
           state={dateRange || ga4Property ? { dateRange, ga4Property } : undefined}
-          className="inline-flex items-center gap-2 text-slate-300 hover:text-white mb-6 transition-colors"
+          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
           Back to Dashboard
@@ -239,16 +239,16 @@ export function EventDetail() {
         <div className="mb-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-white capitalize">
+              <h1 className="text-3xl font-bold text-foreground capitalize">
                 {eventName?.replace(/_/g, " ")} Event
               </h1>
-              <p className="mt-2 text-slate-300">
+              <p className="mt-2 text-muted-foreground">
                 Parameter quality breakdown
                 {dateRange &&
                   ` • ${dateRange.from} – ${dateRange.to}`}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-slate-300">
+            <div className="flex flex-wrap items-center gap-3 text-foreground">
               <label className="flex items-center gap-2">
                 <span className="text-sm">Date range:</span>
                 <DateRangePicker
@@ -264,22 +264,22 @@ export function EventDetail() {
 
         {/* Summary Card */}
         {loading ? (
-          <div className="bg-gradient-to-r from-slate-800 to-slate-700 border border-slate-600 rounded-lg p-6 mb-8">
+          <div className="bg-card border border-border rounded-lg p-6 mb-8">
             <div className="flex justify-between">
               <div className="h-16 w-40 rounded bg-slate-600 animate-pulse" />
               <div className="h-16 w-24 rounded bg-slate-600 animate-pulse" />
             </div>
           </div>
         ) : (
-          <div className="bg-gradient-to-r from-slate-800 to-slate-700 border border-slate-600 rounded-lg p-6 mb-8">
+          <div className="bg-card border border-border rounded-lg p-6 mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-400 mb-1">Average Parameter Quality</p>
-                <p className="text-4xl font-bold text-white">{avgQuality.toFixed(1)}%</p>
+                <p className="text-sm text-muted-foreground mb-1">Average Parameter Quality</p>
+                <p className="text-4xl font-bold text-foreground">{avgQuality.toFixed(1)}%</p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-slate-400 mb-1">Total Parameters</p>
-                <p className="text-4xl font-bold text-white">{parameters.length}</p>
+                <p className="text-sm text-muted-foreground mb-1">Total Parameters</p>
+                <p className="text-4xl font-bold text-foreground">{parameters.length}</p>
               </div>
             </div>
           </div>
@@ -288,23 +288,23 @@ export function EventDetail() {
         {/* Top Offenders - Line curves over time (like front page) */}
         {loading ? (
           <div className="mb-8">
-            <div className="h-6 w-48 rounded bg-slate-700 animate-pulse mb-4" />
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 h-80 flex items-center justify-center">
-              <p className="text-slate-400">Loading chart...</p>
+            <div className="h-6 w-48 rounded bg-muted animate-pulse mb-4" />
+            <div className="bg-card border border-border rounded-lg p-6 h-80 flex items-center justify-center">
+              <p className="text-muted-foreground">Loading chart...</p>
             </div>
           </div>
         ) : topOffenderParams.length > 0 ? (
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold text-white mb-4">
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold text-foreground mb-4">
               Top Offenders (Selected Range)
             </h2>
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+            <div className="bg-card border border-border rounded-lg p-6">
               <div className="flex flex-wrap gap-4 mb-4">
                 {topOffenderParams.map((param) => (
-                  <label
-                    key={param}
-                    className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white"
-                  >
+                    <label
+                      key={param}
+                      className="flex items-center gap-2 cursor-pointer text-muted-foreground hover:text-foreground"
+                    >
                     <input
                       type="checkbox"
                       checked={visibleTopOffenders.has(param)}
@@ -395,33 +395,33 @@ export function EventDetail() {
 
         {/* Parameter Details Table */}
         <div>
-          <h2 className="text-xl font-semibold text-white mb-4">Parameter Details</h2>
+          <h2 className="text-xl font-semibold text-foreground mb-4">Parameter Details</h2>
           {loading ? (
-            <div className="overflow-x-auto rounded-lg border border-slate-700">
-              <div className="h-64 flex items-center justify-center bg-slate-800/50">
-                <p className="text-slate-400">Loading parameters...</p>
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <div className="h-64 flex items-center justify-center bg-card/70">
+                <p className="text-muted-foreground">Loading parameters...</p>
               </div>
             </div>
           ) : displayDrilldown.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border border-slate-700">
-              <table className="min-w-full divide-y divide-slate-700">
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="min-w-full divide-y divide-border">
                 <thead>
-                  <tr className="bg-slate-800">
-                    <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">
+                  <tr className="bg-card">
+                    <th className="px-4 py-3 text-left text-sm font-medium text-foreground">
                       Parameter
                     </th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-slate-300">
+                    <th className="px-4 py-3 text-right text-sm font-medium text-foreground">
                       Events with parameter
                     </th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-slate-300">
+                    <th className="px-4 py-3 text-right text-sm font-medium text-foreground">
                       Events missing
                     </th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-slate-300">
+                    <th className="px-4 py-3 text-right text-sm font-medium text-foreground">
                       % with parameter
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-700 bg-slate-800/50">
+                <tbody className="divide-y divide-border bg-card/70">
                   {displayDrilldown.map((row) => {
                     const validCount = (row.event_count || 0) - (row.invalid_count || 0);
                     const pct = qualityFromRow(row);
@@ -443,15 +443,15 @@ export function EventDetail() {
                             goToParam();
                           }
                         }}
-                        className="hover:bg-slate-700/50 transition-colors cursor-pointer"
+                        className="hover:bg-muted transition-colors cursor-pointer"
                       >
-                        <td className="px-4 py-3 text-sm font-medium text-white capitalize">
+                        <td className="px-4 py-3 text-sm font-medium text-foreground capitalize">
                           {row.param_name.replace(/_/g, " ")}
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-300 text-right">
+                        <td className="px-4 py-3 text-sm text-foreground text-right">
                           {validCount.toLocaleString()}
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-300 text-right">
+                        <td className="px-4 py-3 text-sm text-foreground text-right">
                           {(row.invalid_count || 0).toLocaleString()}
                         </td>
                         <td className={`px-4 py-3 text-sm font-semibold text-right ${pctColor}`}>
@@ -465,7 +465,7 @@ export function EventDetail() {
             </div>
           ) : (
             !error && (
-              <p className="text-slate-400">
+              <p className="text-muted-foreground">
                 No parameter data available for this event in the selected date range.
                 Try selecting a different range from the dashboard.
               </p>

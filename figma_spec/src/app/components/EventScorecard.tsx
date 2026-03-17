@@ -65,7 +65,7 @@ export function EventScorecard({ eventName, percentage, previousPercentage, inde
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: index * 0.1 }}
         whileHover={{ scale: 1.05 }}
-        className="bg-slate-800 border border-slate-700 rounded-lg p-6 shadow-sm hover:shadow-lg hover:border-slate-600 transition-all cursor-pointer"
+      className="bg-card border border-border rounded-lg p-6 shadow-sm hover:shadow-lg hover:border-border/80 transition-all cursor-pointer"
       >
         <div className="flex items-start justify-between mb-4">
           <h3 className="text-sm font-medium text-slate-300">{eventName}</h3>

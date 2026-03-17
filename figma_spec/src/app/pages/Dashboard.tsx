@@ -16,6 +16,7 @@ import { DashboardSkeleton } from "../components/DashboardSkeleton";
 import { DateRangePicker } from "../components/DateRangePicker";
 import { Ga4PropertyPicker } from "../components/Ga4PropertyPicker";
 import type { Ga4PropertyValue } from "../components/Ga4PropertyPicker";
+import { ThemeToggle } from "../components/ThemeToggle";
 import {
   EVENTS,
   fetchDashboard,
@@ -237,7 +238,7 @@ export function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-background dark:bg-gradient-to-br dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {error && (
           <div className="mb-6 rounded-lg bg-red-900/30 border border-red-700 p-4 text-red-200">
@@ -248,26 +249,29 @@ export function Dashboard() {
         {/* Header - always visible */}
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white">
+            <h1 className="text-3xl font-bold text-foreground">
               PULSE
             </h1>
-            <p className="mt-2 text-slate-300">
+            <p className="mt-2 text-muted-foreground">
               Performance & Unified Logging Surveillance Engine
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-slate-300">
-            <label className="flex items-center gap-2">
-              <span className="text-sm">Date range:</span>
-              <DateRangePicker
-                value={dateRange}
-                onChange={setDateRange}
-                placeholder="Select date range"
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <div className="flex flex-wrap items-center gap-3 text-foreground">
+              <label className="flex items-center gap-2">
+                <span className="text-sm">Date range:</span>
+                <DateRangePicker
+                  value={dateRange}
+                  onChange={setDateRange}
+                  placeholder="Select date range"
+                />
+              </label>
+              <Ga4PropertyPicker
+                value={ga4Property}
+                onChange={setGa4Property}
               />
-            </label>
-            <Ga4PropertyPicker
-              value={ga4Property}
-              onChange={setGa4Property}
-            />
+            </div>
           </div>
         </div>
 
@@ -286,15 +290,15 @@ export function Dashboard() {
 
         {/* Client/Server Discrepancy - Sessions & Purchases */}
         <div className="mb-8">
-          <h2 className="text-xl font-semibold text-white mb-4">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
             Client/Server Discrepancy
           </h2>
           {loading ? (
             <DashboardSkeleton.Scorecards />
           ) : clientServerSummary ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 shadow-sm">
-                <h3 className="text-sm font-medium text-slate-300 mb-2">
+              <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
+                <h3 className="text-sm font-medium text-foreground mb-2">
                   Sessions
                 </h3>
                 {clientServerSummary.sessions.ratio != null ? (
@@ -309,18 +313,18 @@ export function Dashboard() {
                     %
                   </div>
                 ) : null}
-                <dl className="space-y-2 text-sm text-slate-300">
+                <dl className="space-y-2 text-sm text-foreground">
                   <div className="flex items-baseline justify-between gap-4">
-                    <dt className="text-slate-400 shrink-0">Client</dt>
-                    <dd className="tabular-nums font-medium text-white">
+                    <dt className="text-muted-foreground shrink-0">Client</dt>
+                    <dd className="tabular-nums font-medium text-foreground">
                       {numberFormatter.format(
                         clientServerSummary.sessions.client
                       )}
                     </dd>
                   </div>
                   <div className="flex items-baseline justify-between gap-4">
-                    <dt className="text-slate-400 shrink-0">Server</dt>
-                    <dd className="tabular-nums font-medium text-white">
+                    <dt className="text-muted-foreground shrink-0">Server</dt>
+                    <dd className="tabular-nums font-medium text-foreground">
                       {numberFormatter.format(
                         clientServerSummary.sessions.server
                       )}
@@ -328,8 +332,8 @@ export function Dashboard() {
                   </div>
                 </dl>
               </div>
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 shadow-sm">
-                <h3 className="text-sm font-medium text-slate-300 mb-2">
+              <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
+                <h3 className="text-sm font-medium text-foreground mb-2">
                   Purchases
                 </h3>
                 {clientServerSummary.purchases.ratio != null ? (
@@ -344,18 +348,18 @@ export function Dashboard() {
                     %
                   </div>
                 ) : null}
-                <dl className="space-y-2 text-sm text-slate-300">
+                <dl className="space-y-2 text-sm text-foreground">
                   <div className="flex items-baseline justify-between gap-4">
-                    <dt className="text-slate-400 shrink-0">Client</dt>
-                    <dd className="tabular-nums font-medium text-white">
+                    <dt className="text-muted-foreground shrink-0">Client</dt>
+                    <dd className="tabular-nums font-medium text-foreground">
                       {numberFormatter.format(
                         clientServerSummary.purchases.client
                       )}
                     </dd>
                   </div>
                   <div className="flex items-baseline justify-between gap-4">
-                    <dt className="text-slate-400 shrink-0">Server</dt>
-                    <dd className="tabular-nums font-medium text-white">
+                    <dt className="text-muted-foreground shrink-0">Server</dt>
+                    <dd className="tabular-nums font-medium text-foreground">
                       {numberFormatter.format(
                         clientServerSummary.purchases.server
                       )}
@@ -365,8 +369,8 @@ export function Dashboard() {
               </div>
             </div>
           ) : (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-              <p className="text-slate-400 py-8">
+            <div className="bg-card border border-border rounded-lg p-6">
+              <p className="text-muted-foreground py-8">
                 No session/purchase discrepancy data for the selected range.
               </p>
             </div>
@@ -375,10 +379,10 @@ export function Dashboard() {
 
         {/* Trend Overview - Line Chart */}
         <div className="mb-8">
-          <h2 className="text-xl font-semibold text-white mb-4">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
             Trend Overview
           </h2>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+          <div className="bg-card border border-border rounded-lg p-6">
             {loading ? (
               <DashboardSkeleton.Chart />
             ) : chartData.length > 0 ? (
@@ -387,7 +391,7 @@ export function Dashboard() {
                   {EVENTS.map((ev) => (
                     <label
                       key={ev}
-                      className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white"
+                      className="flex items-center gap-2 cursor-pointer text-muted-foreground hover:text-foreground"
                     >
                       <input
                         type="checkbox"
@@ -489,7 +493,7 @@ export function Dashboard() {
 
         {/* Event Scorecards */}
         <div>
-          <h2 className="text-xl font-semibold text-white mb-4">Event Quality Metrics</h2>
+          <h2 className="text-xl font-semibold text-foreground mb-4">Event Quality Metrics</h2>
           {loading ? (
             <DashboardSkeleton.Scorecards />
           ) : (
@@ -512,10 +516,10 @@ export function Dashboard() {
 
         {/* Marketing Data Quality — BigQuery stg_marketing_audit__unpacked */}
         <div className="mt-12">
-          <h2 className="text-xl font-semibold text-white mb-4">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
             Marketing Data Quality
             {marketingOverview != null && (
-              <span className="ml-2 text-slate-400 font-normal">
+              <span className="ml-2 text-muted-foreground font-normal">
                 {marketingOverview.payloadHealthScore}/100
               </span>
             )}
@@ -540,25 +544,25 @@ export function Dashboard() {
                 ))}
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-                  <h3 className="text-sm font-medium text-slate-300 mb-4">Volume Trend</h3>
+                <div className="bg-card border border-border rounded-lg p-6">
+                  <h3 className="text-sm font-medium text-foreground mb-4">Volume Trend</h3>
                   <VolumeTrendChart data={marketingOverview.volumeTrend} />
                 </div>
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-                  <h3 className="text-sm font-medium text-slate-300 mb-4">Error Distribution</h3>
+                <div className="bg-card border border-border rounded-lg p-6">
+                  <h3 className="text-sm font-medium text-foreground mb-4">Error Distribution</h3>
                   <ErrorDistributionChart data={marketingOverview.errorDistribution} />
                 </div>
               </div>
             </>
           ) : (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-              <p className="text-slate-400">No marketing data available.</p>
+            <div className="bg-card border border-border rounded-lg p-6">
+              <p className="text-muted-foreground">No marketing data available.</p>
             </div>
           )}
         </div>
 
         {/* Last Updated */}
-        <div className="mt-8 text-center text-sm text-slate-400">
+        <div className="mt-8 text-center text-sm text-muted-foreground">
           Last updated: {latest?.date ? new Date(latest.date + "T12:00:00").toLocaleString() : "—"}
         </div>
       </div>

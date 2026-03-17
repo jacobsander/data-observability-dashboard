@@ -127,20 +127,20 @@ export function DateRangePicker({
           type="button"
           disabled={disabled}
           className={cn(
-            "inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-left text-sm text-white",
-            "focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500",
+            "inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-left text-sm text-foreground shadow-sm",
+            "focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring/50",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            !value && "text-slate-400",
+            !value && "text-muted-foreground",
             className
           )}
         >
-          <CalendarRange className="h-4 w-4 text-slate-400" />
+          <CalendarRange className="h-4 w-4 text-muted-foreground" />
           {displayText}
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-auto p-0 border-slate-600 bg-slate-800"
+        className="w-auto p-0 border border-border bg-card shadow-lg"
       >
         <DayPicker
           mode="range"
@@ -150,21 +150,21 @@ export function DateRangePicker({
           numberOfMonths={2}
           classNames={darkCalendarClassNames}
         />
-        <div className="flex justify-between border-t border-slate-600 px-4 py-3">
+        <div className="flex justify-between border-t border-border px-4 py-3 bg-card">
           <button
             type="button"
             onClick={() => {
               onChange(null);
               setOpen(false);
             }}
-            className="text-sm text-sky-400 hover:text-sky-300"
+            className="text-sm text-sky-700 hover:text-sky-600"
           >
             Clear
           </button>
           <button
             type="button"
             onClick={setLast7Days}
-            className="text-sm text-sky-400 hover:text-sky-300"
+            className="text-sm text-sky-700 hover:text-sky-600"
           >
             Last 7 days
           </button>

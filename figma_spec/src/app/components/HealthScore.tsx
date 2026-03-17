@@ -27,24 +27,24 @@ export function HealthScore({ score, previousScore, topMissing }: HealthScorePro
         label: "Good",
         icon: CheckCircle2,
         color: "text-green-500",
-        bgColor: "bg-slate-800",
-        borderColor: "border-slate-700",
+        bgColor: "bg-card",
+        borderColor: "border-border",
       };
     } else if (score >= 34) {
       return {
         label: "Warning",
         icon: AlertCircle,
         color: "text-yellow-500",
-        bgColor: "bg-slate-800",
-        borderColor: "border-slate-700",
+        bgColor: "bg-card",
+        borderColor: "border-border",
       };
     } else {
       return {
         label: "Critical",
         icon: XCircle,
         color: "text-red-500",
-        bgColor: "bg-slate-800",
-        borderColor: "border-slate-700",
+        bgColor: "bg-card",
+        borderColor: "border-border",
       };
     }
   };
@@ -57,7 +57,7 @@ export function HealthScore({ score, previousScore, topMissing }: HealthScorePro
       <div className="flex flex-col md:flex-row md:items-start gap-6">
         <div className="flex items-start gap-4 min-w-0">
           <div>
-            <p className="text-sm text-slate-400 mb-2">Overall Health Score</p>
+            <p className="text-sm text-foreground mb-2">Overall Health Score</p>
             <div className="flex items-center gap-3">
               <div className="flex items-start gap-0.5">
                 <span className={`text-5xl font-bold ${status.color} transition-transform duration-300 hover:scale-110 cursor-default`}>{Math.round(score)}</span>

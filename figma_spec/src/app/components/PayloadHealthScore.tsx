@@ -46,8 +46,8 @@ export function PayloadHealthScore({ score, previousScore }: PayloadHealthScoreP
   const Icon = status.icon;
 
   return (
-    <div className="bg-slate-800 border-2 border-slate-700 rounded-lg p-8 shadow-lg">
-      <p className="text-sm text-slate-400 mb-2">Payload Health Score</p>
+    <div className="bg-card border-2 border-border rounded-lg p-8 shadow-lg">
+      <p className="text-sm text-foreground mb-2">Payload Health Score</p>
       <div className="flex items-center gap-3">
         <div className="flex items-start gap-0.5">
         <span className={`text-5xl font-bold ${status.color}`}>{Math.round(score)}</span>

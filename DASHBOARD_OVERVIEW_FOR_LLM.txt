@@ -1,0 +1,130 @@
+PULSE / Observability-Layer UI — Dashboard Overview (for LLM review)
+Last updated: 2026-03-12
+
+GOAL / AUDIENCE
+- Purpose: Monitor data-quality of web tracking (GA4) and marketing platform signals (Meta CAPI, Google Ads), highlight issues, and enable drill-downs to diagnose missing/invalid parameters.
+- Audience: Analytics engineers, marketing ops, data engineers, QA, and stakeholders who need at-a-glance health + the ability to investigate root causes.
+
+HIGH-LEVEL INFORMATION ARCHITECTURE
+- Pages / routes:
+  - "/" : Dashboard (overview of web + marketing quality)
+  - "/event/:eventName" : EventDetail (web tracking drill-down per GA4 event)
+  - "/event/:eventName/param/:paramName" : ParamDetail (recent actual values for a single parameter)
+  - "/platform/:platformId" : PlatformDetail (marketing drill-down for Meta CAPI / Google Ads)
+
+GLOBAL FILTERS (top right)
+- Date range selector (default is last 7 days).
+- GA4 property selector (supports multiple; default: moomin_client + moomin_server).
+- Market selector exists in UI concept (All, Denmark, Finland, US) — implementation status may vary.
+
+SECTION 1 — WEB TRACKING QUALITY (GA4)
+What it is:
+- A health-oriented view of core GA4 events and their parameter validation status.
+
+Core elements on the Dashboard:
+- Overall Health Score
+  - Visual indicator of overall tracking quality (0–100; higher is better).
+- Insights panel
+  - Highlights missing parameters / key issues (e.g., top missing params).
+- Client/Server discrepancy cards
+  - Compares key counts (Sessions, Purchases) between client and server streams.
+- Trend overview chart
+  - Trend over time for multiple events (6 standard events).
+- Event quality metrics scorecards (clickable)
+  - Events covered:
+    - session_start
+    - page_view
+    - view_item
+    - add_to_cart
+    - begin_checkout
+    - purchase
+  - Each card shows an event quality score and enables drill-down.
+
+EventDetail page ("/event/:eventName"):
+- Purpose: Drill into one event’s parameter QA results.
+- Typical content:
+  - Parameter-level breakdown by QA status (e.g., VALID vs MISSING_KEY).
+  - Ability to navigate to ParamDetail for a specific parameter.
+
+ParamDetail page ("/event/:eventName/param/:paramName"):
+- Purpose: Show the most recent actual values observed for a given parameter on a given event.
+- Key UI elements:
+  - Title: "<param> details" with context (event + date range).
+  - Table: "Most recent actual values"
+    - Columns: Date, Time, Actual value, QA status
+  - Handles states:
+    - Loading skeleton
+    - Error banner
+    - Empty state: “No recent values found…”
+- Intended diagnostic use:
+  - Quickly see example payload values, spot null/empty values, and confirm whether issues are intermittent or systematic.
+
+SECTION 2 — MARKETING DATA QUALITY (Meta CAPI, Google Ads)
+What it is:
+- A health-oriented view of marketing platform event payload completeness, match-quality, and error distribution.
+
+Core elements on the Dashboard:
+- Payload Health Score (overall marketing data health)
+- Platform scorecards (clickable)
+  - Meta CAPI
+  - Google Ads
+  - Typical stats shown: match rate, total events, failed events, trend.
+- Volume trend chart
+  - Total events vs error events over time.
+- Error distribution chart
+  - Breakdown of error categories (pie chart).
+
+PlatformDetail page ("/platform/:platformId"):
+- Purpose: Deep dive into one platform’s payload/parameter quality and how issues trend over time.
+- Notable visualization:
+  - “Error Rate Trends by Category”
+    - Y-axis: % Missing (error percentage, not quality %)
+    - X-axis: last 7 days
+    - Lines:
+      - Critical errors
+      - Warning errors
+      - Optional errors
+
+Meta CAPI parameter categorization (example approach)
+- Critical parameters (technical requirements; missing can break acceptance):
+  - event_id, event_name, event_time, action_source
+- Warning parameters (match-quality boosters; missing hurts EMQ/ad performance):
+  - user_data.em, user_data.ph, user_data.fbc, user_data.fbp, user_data.client_ip_address, user_data.client_user_agent
+- Optional parameters (business/ecommerce context; supports optimization/attribution depth):
+  - custom_data.value, custom_data.currency, custom_data.content_ids, custom_data.content_type
+  - user_data.fn, user_data.ln, user_data.ct, user_data.st, user_data.zp, user_data.country
+
+DATA & BACKEND NOTES (important context for reviewers)
+- Frontend: React + TypeScript, react-router (createBrowserRouter), Tailwind v4, Recharts, motion/react, lucide-react.
+- APIs:
+  - Dashboard + drilldown + issues + platform endpoints exist under /api (Vercel Python functions).
+  - ParamDetail uses /api/param-detail with query params:
+    - event_name, param_name, limit, from, to, ga4_property
+- Data source intent: BigQuery tables for validation + parameter status.
+- Some UI states/values may still be mocked or partially mocked depending on environment/version.
+
+QUESTIONS FOR THE LLM (ask for feedback)
+Please review this product concept and suggest what’s missing or risky:
+1) Core features:
+   - What other high-signal KPIs/health metrics should be included for tracking quality and marketing payloads?
+   - What drill-downs are most valuable beyond parameter-level (e.g., by page, country, device, campaign, source/medium)?
+2) Diagnostics:
+   - What additional context should the ParamDetail table include (e.g., user/session IDs, page_location, consent state, request path, client/server indicator)?
+   - What “explain why this is failing” helpers would reduce time-to-resolution (examples, remediation steps, ownership tags)?
+3) Alerting & workflow:
+   - What alerting mechanisms are expected (threshold alerts, anomaly detection, Slack/email, incident creation)?
+   - What collaboration features matter (assign issue, comments, runbook links, ticket integration)?
+4) Trust & governance:
+   - What should be logged/audited (changes, filter defaults, query provenance)?
+   - What role-based access or PII protections are needed (especially if showing raw parameter values)?
+5) Performance & reliability:
+   - What caching/limits/pagination should exist for ParamDetail and drilldowns?
+   - What failure modes should be handled explicitly (missing BigQuery credentials, partial data, timeouts)?
+6) UX:
+   - What views are missing for exec vs operator audiences (summary vs forensic)?
+   - What should be exportable (CSV, PDF, share links) and at what granularity?
+
+If useful, propose:
+- A minimal “v1 must-have” checklist
+- A “v2 nice-to-have” backlog
+- A recommended information architecture for scaling to many events/platforms/markets

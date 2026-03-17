@@ -6,8 +6,8 @@ export default function App() {
     <RouterProvider
       router={router}
       fallbackElement={
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-          <p className="text-slate-400">Loading...</p>
+        <div className="min-h-screen bg-background dark:bg-gradient-to-br dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
+          <p className="text-foreground/70">Loading...</p>
         </div>
       }
     />

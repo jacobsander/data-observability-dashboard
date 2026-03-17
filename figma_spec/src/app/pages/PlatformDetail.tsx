@@ -121,17 +121,17 @@ export function PlatformDetail() {
 
   if (platformId && !validId) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="min-h-screen bg-background dark:bg-gradient-to-br dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
         <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
           <Link
             to="/"
             state={state?.dateRange ? { dateRange: state.dateRange } : undefined}
-            className="inline-flex items-center gap-2 text-slate-300 hover:text-white mb-6"
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6"
           >
             <ArrowLeft className="w-5 h-5" />
             Back to Dashboard
           </Link>
-          <p className="text-slate-400">Platform not found: {platformId}</p>
+          <p className="text-muted-foreground">Platform not found: {platformId}</p>
         </div>
       </div>
     );
@@ -140,46 +140,46 @@ export function PlatformDetail() {
   const grouped = detail ? groupParamsByCategory(detail.parameters) : new Map();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-background dark:bg-gradient-to-br dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <Link
           to="/"
           state={state?.dateRange ? { dateRange: state.dateRange } : undefined}
-          className="inline-flex items-center gap-2 text-slate-300 hover:text-white mb-6 transition-colors"
+          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
           Back to Dashboard
         </Link>
 
         {loading ? (
-          <p className="text-slate-400">Loading…</p>
+          <p className="text-muted-foreground">Loading…</p>
         ) : error ? (
-          <p className="text-amber-400">{error}</p>
+          <p className="text-amber-600">{error}</p>
         ) : detail ? (
           <>
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-white">{detail.name}</h1>
-              <p className="mt-2 text-slate-300">
+              <h1 className="text-3xl font-bold text-foreground">{detail.name}</h1>
+              <p className="mt-2 text-muted-foreground">
                 Parameter quality and error rate trends
                 {state?.dateRange && ` • ${state.dateRange.from} – ${state.dateRange.to}`}
               </p>
-              <dl className="mt-4 flex flex-wrap gap-6 text-sm">
+              <dl className="mt-4 flex flex-wrap gap-6 text-sm text-foreground">
                 <div>
-                  <dt className="text-slate-500">Data quality score</dt>
-                  <dd className="flex items-start gap-0.5 text-xl font-semibold text-white">
+                  <dt className="text-muted-foreground">Data quality score</dt>
+                  <dd className="flex items-start gap-0.5 text-xl font-semibold text-foreground">
                     <span>{getDataQualityScore(detail)}</span>
                     <span className="text-sm font-semibold pt-0.5">/100</span>
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-slate-500">Total events</dt>
-                  <dd className="text-xl font-semibold text-white tabular-nums">
+                  <dt className="text-muted-foreground">Total events</dt>
+                  <dd className="text-xl font-semibold text-foreground tabular-nums">
                     {numberFormatter.format(detail.totalEvents)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-slate-500">Failed events</dt>
-                  <dd className="text-xl font-semibold text-white tabular-nums">
+                  <dt className="text-muted-foreground">Failed events</dt>
+                  <dd className="text-xl font-semibold text-foreground tabular-nums">
                     {numberFormatter.format(detail.failedEvents)}
                   </dd>
                 </div>
@@ -188,10 +188,10 @@ export function PlatformDetail() {
 
             {/* Error Rate Trends by Category */}
             <div className="mb-8">
-              <h2 className="text-xl font-semibold text-white mb-4">
+              <h2 className="text-xl font-semibold text-foreground mb-4">
                 Error Rate Trends by Category
               </h2>
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <div className="bg-card border border-border rounded-lg p-6">
                 <div className="h-64 md:h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={detail.errorRateTrend}>
@@ -252,7 +252,7 @@ export function PlatformDetail() {
 
             {/* Parameter table by category */}
             <div>
-              <h2 className="text-xl font-semibold text-white mb-4">Parameters by Category</h2>
+              <h2 className="text-xl font-semibold text-foreground mb-4">Parameters by Category</h2>
               <div className="space-y-6">
                 {(["critical", "warning", "optional"] as const).map((category) => {
                   const params = grouped.get(category) ?? [];
@@ -264,7 +264,7 @@ export function PlatformDetail() {
                       initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3 }}
-                      className={`bg-slate-800 border rounded-lg overflow-hidden ${style.border}`}
+                      className={`bg-card border rounded-lg overflow-hidden ${style.border}`}
                     >
                       <div className={`px-4 py-2 border-b ${style.border} ${style.badge}`}>
                         <span className="font-medium">{style.label}</span>
@@ -272,7 +272,7 @@ export function PlatformDetail() {
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="text-slate-400 border-b border-slate-700">
+                            <tr className="text-muted-foreground border-b border-border">
                               <th className="text-left py-3 px-4">Parameter</th>
                               <th className="text-right py-3 px-4">With param</th>
                               <th className="text-right py-3 px-4">Missing</th>
@@ -284,9 +284,9 @@ export function PlatformDetail() {
                             {params.map((p) => (
                               <tr
                                 key={p.paramKey}
-                                className="border-b border-slate-700/50 last:border-0 text-slate-300"
+                                className="border-b border-border/50 last:border-0 text-foreground"
                               >
-                                <td className="py-3 px-4 font-mono text-white">{p.paramKey}</td>
+                                <td className="py-3 px-4 font-mono">{p.paramKey}</td>
                                 <td className="py-3 px-4 text-right tabular-nums">
                                   {numberFormatter.format(p.eventsWithParam)}
                                 </td>
@@ -306,7 +306,7 @@ export function PlatformDetail() {
                                     {p.percentage}%
                                   </span>
                                 </td>
-                                <td className="py-3 px-4 text-slate-400">{p.description}</td>
+                                <td className="py-3 px-4 text-muted-foreground">{p.description}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -319,7 +319,7 @@ export function PlatformDetail() {
             </div>
           </>
         ) : (
-          <p className="text-slate-400">No data for this platform.</p>
+          <p className="text-muted-foreground">No data for this platform.</p>
         )}
       </div>
     </div>
