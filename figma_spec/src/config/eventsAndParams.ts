@@ -5,7 +5,7 @@
  */
 
 export const EVENTS_AND_PARAMS: Record<string, string[]> = {
-  session_start: ["environment", "page_country", "ga_session_id"],
+  session_start: ["environment", "page_country"],
   page_view: ["environment", "page_country", "page_location", "page_name"],
   view_item: ["environment", "page_country", "item_id", "item_name", "currency", "value"],
   add_to_cart: ["environment", "page_country", "item_id", "item_name", "currency", "value", "quantity"],
@@ -23,7 +23,6 @@ export const EVENTS_AND_PARAMS: Record<string, string[]> = {
     "transaction_id",
     "currency",
     "value",
-    "items",
   ],
 };
 

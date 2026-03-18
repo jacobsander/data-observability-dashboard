@@ -1,0 +1,114 @@
+================================================================================
+PIPELINE HANDOFF — Fix stg_moomin__events counts to match raw GA4 volume
+================================================================================
+Generated: 2026-03-18
+Context: observability-layer-ui (dashboard repo)
+
+Goal
+----
+Make the counts in the observability-layer pipeline (specifically `stg_moomin__events`
+and downstream `fct_ga4_validation`) reflect the *raw* GA4 export event volume.
+
+Symptom (observed)
+------------------
+For 2026-03-17, event_name = 'page_view', moomin_client:
+- Raw GA4 export count:
+    `mimetic-perigee-290610.analytics_411471848.events_20260317`
+    COUNT(*) WHERE event_name='page_view' = 35,242
+
+- Pipeline staging count:
+    `mimetic-perigee-290610.obs_layer_northern_europe.stg_moomin__events`
+    COUNT(*) WHERE date='2026-03-17' AND event_name='page_view' = 20,027
+
+- Dashboard validation fact count (parameter page_location, 100% present):
+    `mimetic-perigee-290610.obs_layer_northern_europe.fct_ga4_validation`
+    SUM(event_count) WHERE date='2026-03-17' AND event_name='page_view' AND param_name='page_location'
+    (ga4_property='moomin_client') = 20,027
+
+Root cause (confirmed)
+----------------------
+The staging model `stg_moomin__events` deduplicates events using a key that
+collapses many legitimate raw rows.
+
+Proof query on raw GA4 export:
+
+    SELECT
+      COUNT(*) AS raw_events,
+      COUNT(DISTINCT CONCAT(CAST(event_timestamp AS STRING), '|', event_name)) AS dedup_events
+    FROM `mimetic-perigee-290610.analytics_411471848.events_20260317`
+    WHERE event_name = 'page_view';
+
+Result:
+- raw_events = 35,242
+- dedup_events = 20,027
+
+This matches the staging count exactly, confirming the dedup key is effectively:
+  (event_timestamp, event_name)  [or (date, event_timestamp, event_name)]
+
+Desired behavior
+----------------
+Keep *raw* event volume, so that for a given date/event:
+  SUM(event_count) in `fct_ga4_validation` aligns with COUNT(*) in GA4 export.
+
+Implementation instructions (dbt project)
+-----------------------------------------
+1) Locate the dbt model for `stg_moomin__events`.
+   - Typically a file like: models/stg/stg_moomin__events.sql (name may vary)
+
+2) Find the dedup logic (often a `QUALIFY ROW_NUMBER() OVER (PARTITION BY ...) = 1`).
+   - Current partition key is effectively collapsing by:
+       date, event_timestamp, event_name
+
+3) Change the dedup strategy to preserve raw rows.
+   Choose ONE:
+
+   A) Remove dedup entirely (raw volume preserved)
+      - Delete the QUALIFY/ROW_NUMBER filter.
+      - WARNING: downstream "missing/invalid" counts will also reflect duplicates,
+        so quality metrics may look worse if duplicates exist in raw export.
+
+   B) Dedup only true duplicates using a stronger key (recommended if you still
+      want dedup but not to collapse distinct events)
+      - Use a partition key that uniquely identifies an event.
+      - Candidate columns (use what exists in your export):
+          - user_pseudo_id
+          - ga_session_id (often extracted from event_params where key='ga_session_id')
+          - event_bundle_sequence_id (if present)
+          - event_previous_timestamp (if present)
+      - Example partition key (illustrative):
+          PARTITION BY date, event_name, event_timestamp, user_pseudo_id, ga_session_id
+      - NOTE: In our investigation, DISTINCT by (event_timestamp, event_name, user_pseudo_id, ga_session_id)
+        was still ~20k, implying many duplicates share those fields too; if you want raw volume,
+        prefer option A (no dedup).
+
+4) Rebuild models for a test date (2026-03-17) and validate counts:
+   - stg_moomin__events page_view rows should equal raw GA4 export count (35,242)
+   - fct_ga4_validation event_count for param_name='page_location' should equal 35,242
+
+Validation queries
+------------------
+Raw:
+  SELECT COUNT(*) AS raw_page_views
+  FROM `mimetic-perigee-290610.analytics_411471848.events_20260317`
+  WHERE event_name = 'page_view';
+
+Staging:
+  SELECT COUNT(*) AS stg_page_views
+  FROM `mimetic-perigee-290610.obs_layer_northern_europe.stg_moomin__events`
+  WHERE date='2026-03-17' AND event_name='page_view';
+
+Fact (use a param that is always present, e.g. page_location):
+  SELECT ga4_property, SUM(event_count) AS event_count, SUM(invalid_count) AS invalid_count
+  FROM `mimetic-perigee-290610.obs_layer_northern_europe.fct_ga4_validation`
+  WHERE date='2026-03-17' AND event_name='page_view' AND param_name='page_location'
+  GROUP BY ga4_property;
+
+Notes
+-----
+- The dashboard repo is NOT the source of this dedup; it only reads the tables.
+- `analytics_411471848` is client-only (moomin_client). Server events are in a separate GA4 export dataset.
+
+================================================================================
+END
+================================================================================
+

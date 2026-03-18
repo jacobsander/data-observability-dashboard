@@ -11,8 +11,8 @@ from google.oauth2 import service_account
 
 
 PROJECT_ID = os.environ.get("BIGQUERY_PROJECT", "mimetic-perigee-290610")
-DATASET = os.environ.get("BIGQUERY_DATASET", "obs_layer_poc_moomin")
-LOCATION = os.environ.get("BIGQUERY_LOCATION", "EU")
+DATASET = os.environ.get("BIGQUERY_DATASET", "obs_layer_northern_europe")
+LOCATION = os.environ.get("BIGQUERY_LOCATION", "europe-north1")
 TABLE_VALIDATION = f"{PROJECT_ID}.{DATASET}.fct_ga4_validation"
 TABLE_SESSIONS_PURCHASES_DAILY = f"{PROJECT_ID}.{DATASET}.fct_moomin_sessions_purchases_daily"
 

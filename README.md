@@ -8,7 +8,7 @@ A monitoring dashboard for GA4 BigQuery data quality, built with React + Vite + 
 
 - Node.js 18+
 - Python 3.10+
-- BigQuery service account key (JSON) with access to `mimetic-perigee-290610.obs_layer_poc_moomin`
+- BigQuery service account key (JSON) with access to `mimetic-perigee-290610.obs_layer_northern_europe`
 
 ### 1. Backend
 
@@ -25,7 +25,7 @@ Create a `.env` file (see `.env.example`):
 ```
 GOOGLE_APPLICATION_CREDENTIALS=path/to/your-service-account-key.json
 BIGQUERY_PROJECT=mimetic-perigee-290610
-BIGQUERY_DATASET=obs_layer_poc_moomin
+BIGQUERY_DATASET=obs_layer_northern_europe
 ```
 
 Start the backend:
@@ -81,5 +81,6 @@ observability-layer-ui/
    - `GOOGLE_APPLICATION_CREDENTIALS_JSON` – paste the full service account JSON (recommended for serverless)
    - Or `GOOGLE_APPLICATION_CREDENTIALS` – path to keyfile (if available in build)
    - `BIGQUERY_PROJECT` (optional, default: mimetic-perigee-290610)
-   - `BIGQUERY_DATASET` (optional, default: obs_layer_poc_moomin)
+   - `BIGQUERY_DATASET` (optional, default: obs_layer_northern_europe)
+   - `BIGQUERY_LOCATION` (optional, default: europe-north1)
 3. Deploy. The frontend builds from `figma_spec/`, and API routes in `api/` run as serverless functions.

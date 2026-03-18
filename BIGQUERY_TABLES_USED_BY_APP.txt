@@ -1,0 +1,51 @@
+================================================================================
+BIGQUERY TABLES USED BY THIS APP (from code)
+================================================================================
+Generated: 2026-03-17
+
+This file inventories the BigQuery tables that are *actually referenced by the
+repository's backend/query code*.
+
+Defaults (can be overridden via env vars):
+  - BIGQUERY_PROJECT  default: mimetic-perigee-290610
+  - BIGQUERY_DATASET  default: obs_layer_northern_europe
+  - BIGQUERY_LOCATION default: europe-north1
+
+Fully-qualified table format:
+  <project>.<dataset>.<table>
+
+--------------------------------------------------------------------------------
+TABLES (deduped)
+--------------------------------------------------------------------------------
+
+1) mimetic-perigee-290610.obs_layer_northern_europe.fct_ga4_validation
+   - Used by: GA4 event quality range, drilldown, issues, top-missing params
+   - Referenced in:
+     - lib/bigquery_queries.py (TABLE_VALIDATION)
+     - backend/bigquery_client.py (TABLE_VALIDATION)
+
+2) mimetic-perigee-290610.obs_layer_northern_europe.int_moomin__event_param_status
+   - Used by: param detail (recent actual_value rows per event/param)
+   - Referenced in:
+     - backend/bigquery_client.py (TABLE_INT_EVENT_PARAM_STATUS)
+
+3) mimetic-perigee-290610.obs_layer_northern_europe.fct_moomin_sessions_purchases_daily
+   - Used by: sessions vs purchases daily (per ga4_property)
+   - Referenced in:
+     - lib/bigquery_queries.py (TABLE_SESSIONS_PURCHASES_DAILY)
+     - backend/bigquery_client.py (TABLE_SESSIONS_PURCHASES_DAILY)
+
+4) mimetic-perigee-290610.obs_layer_northern_europe.stg_marketing_audit__unpacked
+   - Used by: marketing overview + platform detail (payload health)
+   - Referenced in:
+     - backend/marketing_queries.py (TABLE_MARKETING_AUDIT)
+
+--------------------------------------------------------------------------------
+NOTES
+--------------------------------------------------------------------------------
+- BIGQUERY_TABLES_REFERENCE.txt mentions additional tables (e.g.
+  fct_ga4_validation_summary_daily, stg_moomin__events) that are not currently
+  referenced by the backend query code in this repo.
+- If you change BIGQUERY_PROJECT / BIGQUERY_DATASET at runtime, the same table
+  names apply but under the configured project/dataset.
+

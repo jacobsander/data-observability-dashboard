@@ -94,6 +94,13 @@ export interface DrilldownRow {
   invalid_count: number;
 }
 
+export interface RawEventCountResponse {
+  from: string;
+  to: string;
+  event_name: string;
+  counts: Record<string, number>;
+}
+
 export async function fetchDrilldown(
   date: string,
   eventName: string,
@@ -105,6 +112,21 @@ export async function fetchDrilldown(
   });
   if (ga4Property?.length) params.set("ga4_property", ga4Property.join(","));
   return fetchJson<DrilldownRow[]>(`${API_BASE}/drilldown?${params}`);
+}
+
+export async function fetchRawEventCount(options: {
+  from: string;
+  to: string;
+  eventName: string;
+  ga4Property?: string[];
+}): Promise<RawEventCountResponse> {
+  const params = new URLSearchParams({
+    from: options.from,
+    to: options.to,
+    event_name: options.eventName,
+  });
+  if (options.ga4Property?.length) params.set("ga4_property", options.ga4Property.join(","));
+  return fetchJson<RawEventCountResponse>(`${API_BASE}/raw-event-count?${params}`);
 }
 
 export interface ParamDetailRow {

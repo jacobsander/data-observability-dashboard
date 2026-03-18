@@ -10,11 +10,17 @@ from google.oauth2 import service_account
 
 
 PROJECT_ID = os.environ.get("BIGQUERY_PROJECT", "mimetic-perigee-290610")
-DATASET = os.environ.get("BIGQUERY_DATASET", "obs_layer_poc_moomin")
-LOCATION = os.environ.get("BIGQUERY_LOCATION", "EU")
+DATASET = os.environ.get("BIGQUERY_DATASET", "obs_layer_northern_europe")
+LOCATION = os.environ.get("BIGQUERY_LOCATION", "europe-north1")
 TABLE_VALIDATION = f"{PROJECT_ID}.{DATASET}.fct_ga4_validation"
 TABLE_INT_EVENT_PARAM_STATUS = f"{PROJECT_ID}.{DATASET}.int_moomin__event_param_status"
 TABLE_SESSIONS_PURCHASES_DAILY = f"{PROJECT_ID}.{DATASET}.fct_moomin_sessions_purchases_daily"
+
+# Optional: raw GA4 export datasets (for showing raw event volumes alongside deduped models).
+RAW_GA4_DATASET_BY_PROPERTY: dict[str, str] = {
+    "moomin_client": os.environ.get("RAW_GA4_DATASET_MOOMIN_CLIENT", "analytics_411471848"),
+    "moomin_server": os.environ.get("RAW_GA4_DATASET_MOOMIN_SERVER", ""),
+}
 
 EVENTS = [
     "session_start",
@@ -35,6 +41,58 @@ def _parse_ga4_properties(value: str | None) -> list[str]:
     parts = [p.strip().lower() for p in value.split(",") if p.strip()]
     valid = [p for p in parts if p in GA4_PROPERTIES]
     return valid if valid else list(GA4_PROPERTIES)
+
+
+def query_raw_event_counts(
+    date_from: str,
+    date_to: str,
+    event_name: str,
+    ga4_properties: list[str] | None = None,
+) -> dict[str, int]:
+    """Return raw GA4 event counts per ga4_property for date range (inclusive).
+
+    Reads directly from GA4 export tables: `<project>.<analytics_dataset>.events_*` using _TABLE_SUFFIX.
+    Raw datasets are configured via RAW_GA4_DATASET_MOOMIN_CLIENT / RAW_GA4_DATASET_MOOMIN_SERVER.
+    """
+    if not ga4_properties:
+        ga4_properties = GA4_PROPERTIES
+
+    # Validate dates and normalize event_name
+    for d, label in [(date_from, "date_from"), (date_to, "date_to")]:
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+            raise ValueError(f"Invalid {label} format: use YYYY-MM-DD.")
+        datetime.strptime(d, "%Y-%m-%d")
+    event_name = _normalize_event_name(event_name)
+    if event_name not in EVENTS:
+        raise ValueError(
+            f"Invalid event_name: '{event_name}'. Must be one of: {', '.join(EVENTS)}"
+        )
+
+    suffix_from = date_from.replace("-", "")
+    suffix_to = date_to.replace("-", "")
+
+    client = get_client()
+    counts: dict[str, int] = {}
+    for prop in ga4_properties:
+        ds = RAW_GA4_DATASET_BY_PROPERTY.get(prop, "")
+        if not ds:
+            continue
+        query = f"""
+        SELECT COUNT(*) AS event_count
+        FROM `{PROJECT_ID}.{ds}.events_*`
+        WHERE _TABLE_SUFFIX BETWEEN @suffix_from AND @suffix_to
+          AND event_name = @event_name
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("suffix_from", "STRING", suffix_from),
+                bigquery.ScalarQueryParameter("suffix_to", "STRING", suffix_to),
+                bigquery.ScalarQueryParameter("event_name", "STRING", event_name),
+            ]
+        )
+        rows = list(client.query(query, job_config=job_config))
+        counts[prop] = int(rows[0].event_count or 0) if rows else 0
+    return counts
 
 
 def _normalize_event_name(raw: str) -> str:
